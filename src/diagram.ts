@@ -17,35 +17,23 @@ export class Diagram {
         // Write the diagram to a file
         fs.writeFileSync(path.join(tmpDir, 'diagram.md'), this.content);
 
-        try {
-
-            return new Promise((resolve, reject) => {
-                exec(`npx mmdc -i ${tmpDir}/diagram.md -o ${tmpDir}/diagram.svg`, (error, stdout, stderr) => {
-                    if (error) {
-                        logMessage(`ERR: ${error.message}`);
-                        resolve({
-                            message: error.message,
-                            stack: error.stack
-                        });
-                    } else if (stderr) {
-                        logMessage(`STDERR: ${stderr}`);
-                        // probably still worked?
-                        resolve(undefined);
-                    } else {
-                        logMessage(`STDOUT: ${stdout}`);
-                        resolve(undefined);
-                    }
-                });
+        return new Promise((resolve, reject) => {
+            exec(`npx mmdc -i ${tmpDir}/diagram.md -o ${tmpDir}/diagram.svg`, (error, stdout, stderr) => {
+                if (error) {
+                    logMessage(`ERR: ${error.message}`);
+                    resolve({
+                        message: error.message,
+                        stack: error.stack
+                    });
+                } else if (stderr) {
+                    logMessage(`STDERR: ${stderr}`);
+                    // probably still worked?
+                    resolve(undefined);
+                } else {
+                    logMessage(`STDOUT: ${stdout}`);
+                    resolve(undefined);
+                }
             });
-
-        } catch (e: any) {
-            logMessage(`ERR: ${e?.message ?? e}`);
-            return {
-                message: e?.message ?? JSON.stringify(e),
-                stack: e.stack
-            };
-        }
-
-        return undefined;
+        });
     }
 }
