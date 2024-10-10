@@ -5,6 +5,7 @@ import * as path from 'path';
 import { DiagramDocument } from './diagramDocument';
 import { getHistoryMessages, getContextMessage } from './chatHelpers';
 import { logMessage } from './extension';
+import { exportMermaidSvg } from './mermaid';
 
 export function registerChatParticipant(context: vscode.ExtensionContext) {
     const handler: vscode.ChatRequestHandler = chatRequestHandler;
@@ -146,19 +147,9 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         stream.progress('Validating mermaid diagram');
         const tmpDir = fs.mkdtempSync(os.tmpdir());
         logMessage(tmpDir);
-
-        // Write the diagram to a file
-        fs.writeFileSync(path.join(tmpDir, 'diagram.md'), mermaidDiagram);
-        const mermaidCLIModule = await import('@mermaid-js/mermaid-cli');
+        
         try {
-            await mermaidCLIModule.run(
-                `${tmpDir}/diagram.md`,     // input
-                `${tmpDir}/diagram.svg`,    // output
-                {
-                    outputFormat: 'svg',
-                }
-            );
-
+            await exportMermaidSvg(tmpDir, mermaidDiagram);
         } catch (e: any) {
             mermaidDiagram = '';
             stream.progress('Attempting to fix validation errors');

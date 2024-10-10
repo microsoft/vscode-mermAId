@@ -79,6 +79,7 @@
     "views": {
       "mermAId-container": [
         {
+          "type": "webview",
           "id": "mermaid-outline-diagram",
           "name": "Mermaid Outline"
         }
