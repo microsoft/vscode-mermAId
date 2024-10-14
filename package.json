@@ -39,6 +39,21 @@
           {
             "name": "uml",
             "description": "Generate a UML diagram"
+          },
+          {
+            "name": "iterate",
+            "description": "Iterate on a diagram generated in a previous chat turn",
+            "disambiguation": [
+              {
+                "category": "mermaid_iterate",
+                "description": "The user wants to make a minor and directed edit to an already generated mermaid diagram",
+                "examples": [
+                  "Add class foo to the diagram",
+                  "Change the color property of the class foo to blue",
+                  "Remove the class foo from the diagram"
+                ]
+              }
+            ]
           }
         ]
       }

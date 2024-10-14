@@ -16,6 +16,9 @@ import {
 } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { isTsxMermaidMetadata, ToolCallRound } from './toolMetadata';
+import { afterIterateCommandExampleDiagram, beforeIterateCommandExampleDiagram } from './chatExamples';
+import { logMessage } from '../extension';
+import { DiagramEditorPanel } from '../diagramEditorPanel';
 
 export interface MermaidProps extends BasePromptElementProps {
 	request: vscode.ChatRequest;
@@ -207,7 +210,40 @@ class RequestCommand extends PromptElement<RequestCommandProps, void> {
 		const docRef = doc ? 
 			`The file the user currently has open is: ${doc.uri.fsPath} with contents: ${doc.getText()}` : 
 			`The user does not have any files open, the root of the workspace is: ${vscode.workspace.workspaceFolders?.[0]?.uri.fsPath}`;
+		logMessage(`docRef: ${docRef}`);
 		switch (this.props.commandName) {
+			case 'iterate':
+				// If diagram already exists
+				const diagram = DiagramEditorPanel.currentPanel?.diagram;
+				if (!diagram) {
+					logMessage('Iterate: No existing diagram.');
+					return (
+						<>
+						<AssistantMessage>
+							End this chat conversation after explaining that you cannot iterate on a diagram that does not exist.
+						</AssistantMessage>
+						</>
+					)
+				}
+				logMessage('Iterating on existing diagram.');
+				logMessage(diagram.content);
+				return (
+					<>
+					<AssistantMessage>
+						The user has indicated they want to iterate on the latest diagram.
+						Their current diagram is the following:
+						${diagram.content}
+
+						The user will give you a direct command on how to update the diagram.
+						Do not make any other edits except the user's directed suggestion.
+						It is much less likely you will need to use a tool, unless the user has asked a question that references the codebase.
+						For example, if the user says 'Change all int data types to doubles and change Duck to Bunny' in the following diagram:
+						${beforeIterateCommandExampleDiagram}
+						Then you should emit the following diagram:
+						${afterIterateCommandExampleDiagram}
+					</AssistantMessage>
+					</>
+				)
 			case 'uml':
 				return (
 					<>

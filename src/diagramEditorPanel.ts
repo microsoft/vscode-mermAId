@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { Diagram } from './diagram';
+import { logMessage } from './extension';
 
 export class DiagramEditorPanel {
 	/**
-	 * Track the currently panel. Only allow a single panel to exist at a time.
+	 * Tracks the current panel. Only allows a single panel to exist at a time.
 	 */
 	public static currentPanel: DiagramEditorPanel | undefined;
 
@@ -14,6 +15,10 @@ export class DiagramEditorPanel {
 	private readonly _panel: vscode.WebviewPanel;
 	private _disposables: vscode.Disposable[] = [];
 
+	get diagram() {
+		return this._diagram;
+	}
+
 	public static createOrShow(diagram: Diagram) {
 		const column = vscode.window.activeTextEditor
 			? vscode.window.activeTextEditor.viewColumn
@@ -21,12 +26,14 @@ export class DiagramEditorPanel {
 
 		// If we already have a panel, show it.
 		if (DiagramEditorPanel.currentPanel) {
+			logMessage('Revealing existing panel');
 			DiagramEditorPanel.currentPanel._panel.reveal(column);
 			DiagramEditorPanel.currentPanel._update(diagram);
 			return;
 		}
 
 		// Otherwise, create a new panel.
+		logMessage('Creating new panel');
 		const panel = vscode.window.createWebviewPanel(
 			DiagramEditorPanel.viewType,
 			'@mermAId Diagram',

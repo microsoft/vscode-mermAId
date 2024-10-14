@@ -22,9 +22,10 @@ const template = (innerContent: string) => `
 const llmInstructions = `
 You are helpful chat assistant that creates diagrams for the user using the mermaid syntax.
 The output diagram should represent an outline of the document.
+Use tools to help you formulate the structure of the code.
 You must provide a valid mermaid diagram prefixed with a line containing  \`\`\`mermaid
 and suffixed with a line containing \`\`\`.
-Only ever include the \`\`\` delimiter in the two places mentioned above. 
+Only ever include the \`\`\` delimiter in the two places mentioned above.
 Do not include any other text before or after the diagram, only include the diagram.
 `;
 
