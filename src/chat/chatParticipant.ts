@@ -117,13 +117,13 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         const diagram = new Diagram(mermaidDiagram);
 
         const result = await DiagramEditorPanel.createOrShow(diagram);
-
         if (!result.success) {
-            if (retries++ < 1) {
+            logMessage(`Not successful (retry=${retries++})`);
+            if (retries < 1) {
                 addNestingContext(messages);
             }
-            if (retries++ < 2) {
-                if (retries++ < 2) {
+            if (retries < 2) {
+                if (retries < 2) {
                     stream.progress('Attempting to fix validation errors');
                     // we might be able to reset the messages to this message only
                     messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.error}. The diagram is below:\n${mermaidDiagram}`));
