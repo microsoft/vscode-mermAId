@@ -115,37 +115,37 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         // Validate
         stream.progress('Validating mermaid diagram');
         const diagram = new Diagram(mermaidDiagram);
-
         const result = await DiagramEditorPanel.createOrShow(diagram);
-        if (!result.success) {
-            logMessage(`Not successful (retry=${retries++})`);
-            if (retries < 1) {
-                addNestingContext(messages);
-            }
-            if (retries < 2) {
-                if (retries < 2) {
-                    stream.progress('Attempting to fix validation errors');
-                    // we might be able to reset the messages to this message only
-                    messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.error}. The diagram is below:\n${mermaidDiagram}`));
-                    return runWithFunctions();
-                } else {
-                    if (result.error) {
-                        logMessage(result.error);
-                    }
-                    stream.markdown('Failed to generate diagram from the mermaid content. Check output log for details.\n\n');
-                    stream.markdown(mermaidDiagram);
-                }
-            }
-        } else {
-            // add button to show markdown file for the diagram
+
+        if (result.success) {
             const openNewFileCommand: vscode.Command = {
                 command: COMMAND_OPEN_MARKDOWN_FILE,
                 title: vscode.l10n.t('Open mermaid source'),
                 arguments: [diagram.content]
             };
             stream.button(openNewFileCommand);
+            return;
         }
-    };
+
+        // -- Handle parse error
+
+        logMessage(`Not successful (on retry=${++retries})`);
+        if (retries === 1) {
+            addNestingContext(messages);
+        }
+        if (retries < 4) {
+                stream.progress('Attempting to fix validation errors');
+                // we might be able to reset the messages to this message only
+                messages.push(vscode.LanguageModelChatMessage.User(`Please fix this mermaid parse error to make the diagram render correctly: ${result.error}. The produced diagram with the parse error is:\n${mermaidDiagram}`));
+                return runWithFunctions();
+        } {
+            if (result.error) {
+                logMessage(result.error);
+            }
+            stream.markdown('Failed to display your requested mermaid diagram. Check output log for details.\n\n');
+            stream.markdown(mermaidDiagram);
+        }
+    }; // End runWithFunctions()
 
     await runWithFunctions();
 }
