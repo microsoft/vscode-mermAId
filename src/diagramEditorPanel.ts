@@ -32,7 +32,7 @@ export class DiagramEditorPanel {
 		if (DiagramEditorPanel.currentPanel) {
 			logMessage('Revealing existing panel');
 			DiagramEditorPanel.currentPanel._panel.reveal(column);
-			return await DiagramEditorPanel.currentPanel._update(diagram);
+			return await DiagramEditorPanel.currentPanel._validate(diagram);
 		}
 
 		// Otherwise, create a new panel.
@@ -45,7 +45,7 @@ export class DiagramEditorPanel {
 		);
 
 		DiagramEditorPanel.currentPanel = new DiagramEditorPanel(panel, diagram);
-		return DiagramEditorPanel.currentPanel._update();
+		return DiagramEditorPanel.currentPanel._validate();
 	}
 
 	private constructor(panel: vscode.WebviewPanel, private _diagram: Diagram) {
@@ -121,7 +121,10 @@ export class DiagramEditorPanel {
 		}
 	}
 
-	private async _update(diagram?: Diagram): Promise<{ success: true} | { success: false, error: string }> {
+	// Validates the diagram inside of a webview.  If successful,
+	// updates this webview to display the diagram.
+	// On failure, returns the parse error details for the caller to handle.
+	private async _validate(diagram?: Diagram): Promise<{ success: true} | { success: false, error: string }> {
 		if (diagram) {
 			this._diagram = diagram;
 		}
@@ -178,7 +181,7 @@ export class DiagramEditorPanel {
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<body>
-				<p>Validating diagram....hang tight!</p>
+				<h1>Validating diagram....hang tight!</h1>
 				
 				<script type="module">
 				 	const vscode = acquireVsCodeApi();
@@ -198,7 +201,7 @@ export class DiagramEditorPanel {
 					};
 					const diagramType = await mermaid.parse(diagram);
 					console.log('after parse')
-					console.log(diagramType);
+					console.log(JSON.stringify(diagramType));
 					if (diagramType) {
 						vscode.postMessage({
 							command: 'parse-result',
@@ -268,7 +271,7 @@ export class DiagramEditorPanel {
 					// though we shouldn't have any since we've
 					// gone through the validation step already...
 					mermaid.parseError = function (err, hash) {
-						console.log('error parsing diagram');
+						console.log('UNEXPECTED ERROR PARSING DIAGRAM');
 						console.log(err);
 					};
 
@@ -276,11 +279,10 @@ export class DiagramEditorPanel {
 					${mermaidMd}
 					\`;
 
-					// Place diagram into pre tag with the proper escaping
-					document.getElementById('mermaid-diagram-pre').innerHTML = diagram;
+					document.getElementById('mermaid-diagram-pre').textContent = diagram;
 
 					// DEBUG
-					console.log(document.getElementById('mermaid-diagram-pre').innerHTML);
+					console.log(document.getElementById('mermaid-diagram-pre').textContent);
 					
 					console.log('initializing mermaid');
 					mermaid.initialize({ startOnLoad: true,  securityLevel: 'loose' }); // loose needed to click links
