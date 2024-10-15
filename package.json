@@ -34,7 +34,6 @@
         "name": "mermAId",
         "description": "Work with diagrams in the chat",
         "isSticky": true,
-        "supportsToolReferences": true,
         "commands": [
           {
             "name": "uml",
@@ -68,7 +67,7 @@
         "displayName": "Symbol Definition",
         "modelDescription": "Given a file path string and a list of symbols, this model returns the definitions of the specified symbols. For example, if the file 'x.py' is provided and the symbol 'abc' is requested, the model will find 'abc' in 'x.py' and return its definition from the file where it is actually defined, such as 'y.py'.",
         "icon": "$(files)",
-        "canBeReferencedInPrompt": true,
+        "canBeReferencedInPrompt": false,
         "parametersSchema": {
           "type": "object",
           "properties": {
@@ -97,7 +96,7 @@
         {
           "id": "mermAId-container",
           "title": "Outline (Mermaid)",
-          "icon": ""
+          "icon": "./assets/mermaid.svg"
         }
       ]
     },
@@ -122,6 +121,16 @@
           "when": "view == mermaid-outline-diagram",
           "group": "navigation"
         }
+      ],
+      "commandPalette": [
+        {
+          "command": "mermAId.openMarkdownFile",
+          "when": "false"
+        },
+        {
+          "command": "mermAId.openDiagramSvg",
+          "when": "false"
+        }
       ]
     },
     "commands": [
@@ -132,6 +141,14 @@
       {
         "command": "copilot-mermAId-diagram.follow-outline",
         "title": "Follow"
+      },
+      {
+        "command": "mermAId.openDiagramSvg",
+        "title": "View rendered SVG"
+      },
+      {
+        "command": "mermAId.openMarkdownFile",
+        "title": "Open Markdown File"
       }
     ]
   },
