@@ -60,7 +60,7 @@ export class DiagramEditorPanel {
 			async message => {
 				switch (message.command) {
 					case 'save-svg':
-						// TODO: I broke this
+						// jospicer TODO: I broke this
 
 						// const uri = await vscode.window.showSaveDialog({
 						// 	filters: {
@@ -72,13 +72,13 @@ export class DiagramEditorPanel {
 						// 	await vscode.workspace.fs.writeFile(uri, Buffer.from(this._diagram.asSvg(), 'utf8'));
 						// 	vscode.window.showInformationMessage('SVG saved successfully!');
 						// }
+						vscode.window.showErrorMessage('TODO: SVG export is currently unimplemented, oops!');
 						break;
 					case 'mermaid-source':
 						await DiagramDocument.createAndShow(this._diagram);
 						this.checkForMermaidExtensions();
 						break;
 					case 'parse-result':
-						vscode.window.showInformationMessage('Parse result: ' + message.success);
 						logMessage(`Parse Result: ${JSON.stringify(message)}`);
 						this.parseDetails = message;
 						break;
@@ -131,7 +131,7 @@ export class DiagramEditorPanel {
 		const webview = this._panel.webview;
 		this._panel.title = '@mermAId Diagram';
 
-		// TODO: This is not async safe
+		//jospicer TODO: This doesn't feel async safe. Rethink - lock?
 		this.parseDetails = undefined;
 		this._panel.webview.html = DiagramEditorPanel.getHtmlToValidateMermaid(webview, this._diagram.content);
 

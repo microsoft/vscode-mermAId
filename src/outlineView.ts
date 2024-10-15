@@ -170,18 +170,9 @@ export async function promptLLMForOutlineDiagram(context: vscode.ExtensionContex
 
         // Validate the diagram
         const nextDiagram = new Diagram(mermaidDiagram);
-        
-        // const result = nextDiagram.validate();
-        // if (!result.success) {
-        //     logMessage(`Candidate failed failidation (retries=${retries}): ${result.message}`);
-        //     if (retries++ < 2) {
-        //         logMessage(`Retrying...`);
-        //         messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.message}. The diagram is below:\n${mermaidDiagram}`));
-        //         return runWithTools();
-
-        //     }
-        // }
         return nextDiagram;
+
+        // jospicer TODO: Needs to add back validation here.
     };
 
     return await runWithTools();

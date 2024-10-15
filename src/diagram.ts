@@ -8,10 +8,6 @@ export class Diagram {
         this._content = this._content
             .replace(/^```mermaid/, '')
             .replace(/```$/, '').trim();
-    
-        logMessage(`~~`);
-        logMessage(this._content);
-        logMessage(`~~`);
     }
 
     get content(): string { 
