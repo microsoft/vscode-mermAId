@@ -170,16 +170,17 @@ export async function promptLLMForOutlineDiagram(context: vscode.ExtensionContex
 
         // Validate the diagram
         const nextDiagram = new Diagram(mermaidDiagram);
-        const result = await nextDiagram.generateWithValidation();
-        if (!result.success) {
-            logMessage(`Candidate failed failidation (retries=${retries}): ${result.message}`);
-            if (retries++ < 2) {
-                logMessage(`Retrying...`);
-                messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.message}. The diagram is below:\n${mermaidDiagram}`));
-                return runWithTools();
+        
+        // const result = nextDiagram.validate();
+        // if (!result.success) {
+        //     logMessage(`Candidate failed failidation (retries=${retries}): ${result.message}`);
+        //     if (retries++ < 2) {
+        //         logMessage(`Retrying...`);
+        //         messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.message}. The diagram is below:\n${mermaidDiagram}`));
+        //         return runWithTools();
 
-            }
-        }
+        //     }
+        // }
         return nextDiagram;
     };
 
@@ -234,12 +235,12 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
         }
 
         try {
-            const svgContents = this.diagram?.asSvg();
-            if (!svgContents || !svgContents.length) {
+            const mermaidMd = this.diagram.content;
+            if (!mermaidMd || !mermaidMd.length) {
                 this._view.webview.html = template('<p>Empty diagram</p>');
                 return;
             }
-            this._view.webview.html = DiagramEditorPanel.getHtmlForWebview(this._view.webview, svgContents, false);
+            this._view.webview.html = DiagramEditorPanel.getHtmlForWebview(this._view.webview, mermaidMd, false);
         } catch (e) {
             this._view.webview.html = template('<p>No diagram</p>');
             return;

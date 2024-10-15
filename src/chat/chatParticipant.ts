@@ -115,7 +115,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         stream.progress('Validating mermaid diagram');
         const diagram = new Diagram(mermaidDiagram);
 
-        const result = await diagram.generateWithValidation();
+        const result = await DiagramEditorPanel.createOrShow(diagram);
 
         if (!result.success) {
             if (retries++ < 1) {
@@ -125,29 +125,28 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
                 if (retries++ < 2) {
                     stream.progress('Attempting to fix validation errors');
                     // we might be able to reset the messages to this message only
-                    messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.message}. The diagram is below:\n${mermaidDiagram}`));
+                    messages.push(vscode.LanguageModelChatMessage.User(`Please fix this error to make the diagram render correctly: ${result.error}. The diagram is below:\n${mermaidDiagram}`));
                     return runWithFunctions();
                 } else {
-                    if (result.stack) {
-                        logMessage(result.stack);
+                    if (result.error) {
+                        logMessage(result.error);
                     }
                     stream.markdown('Failed to generate diagram from the mermaid content. Check output log for details.\n\n');
                     stream.markdown(mermaidDiagram);
                 }
             }
         } else {
-            DiagramEditorPanel.createOrShow(diagram);
-
             // add button to show markdown file for the diagram
-            if (result.diagramPath) {
-                const diagramFileUri = vscode.Uri.file(result.diagramPath);
-                const openNewFileCommand: vscode.Command = {
-                    command: 'vscode.open',
-                    title: vscode.l10n.t('See mermaid diagram markdown'),
-                    arguments: [diagramFileUri]
-                };
-                stream.button(openNewFileCommand);
-            }
+            // TODO: Re-enable
+            // if (result.diagramPath) {
+            //     const diagramFileUri = vscode.Uri.file(result.diagramPath);
+            //     const openNewFileCommand: vscode.Command = {
+            //         command: 'vscode.open',
+            //         title: vscode.l10n.t('See mermaid diagram markdown'),
+            //         arguments: [diagramFileUri]
+            //     };
+            //     stream.button(openNewFileCommand);
+            // }
         }
     };
 

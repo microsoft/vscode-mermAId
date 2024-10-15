@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { Diagram } from './diagram';
 import { logMessage } from './extension';
+import { parse } from 'path';
+
 
 export class DiagramEditorPanel {
 	/**
@@ -10,16 +12,18 @@ export class DiagramEditorPanel {
 
 	public static readonly viewType = 'mermaidDiagram';
 
+	
 	public static extensionUri: vscode.Uri;
-
+	
 	private readonly _panel: vscode.WebviewPanel;
+	private parseDetails:  { success: boolean, error: string } | undefined = undefined;
 	private _disposables: vscode.Disposable[] = [];
 
 	get diagram() {
 		return this._diagram;
 	}
 
-	public static createOrShow(diagram: Diagram) {
+	public static async createOrShow(diagram: Diagram) {
 		const column = vscode.window.activeTextEditor
 			? vscode.window.activeTextEditor.viewColumn
 			: undefined;
@@ -28,8 +32,7 @@ export class DiagramEditorPanel {
 		if (DiagramEditorPanel.currentPanel) {
 			logMessage('Revealing existing panel');
 			DiagramEditorPanel.currentPanel._panel.reveal(column);
-			DiagramEditorPanel.currentPanel._update(diagram);
-			return;
+			return await DiagramEditorPanel.currentPanel._update(diagram);
 		}
 
 		// Otherwise, create a new panel.
@@ -42,7 +45,7 @@ export class DiagramEditorPanel {
 		);
 
 		DiagramEditorPanel.currentPanel = new DiagramEditorPanel(panel, diagram);
-		DiagramEditorPanel.currentPanel._update();
+		return DiagramEditorPanel.currentPanel._update();
 	}
 
 	private constructor(panel: vscode.WebviewPanel, private _diagram: Diagram) {
@@ -57,21 +60,28 @@ export class DiagramEditorPanel {
 			async message => {
 				switch (message.command) {
 					case 'save-svg':
-						const uri = await vscode.window.showSaveDialog({
-							filters: {
-								'SVG Files': ['svg']
-							}
-						});
+						// TODO: I broke this
 
-						if (uri) {
-							await vscode.workspace.fs.writeFile(uri, Buffer.from(this._diagram.asSvg(), 'utf8'));
-							vscode.window.showInformationMessage('SVG saved successfully!');
-						}
+						// const uri = await vscode.window.showSaveDialog({
+						// 	filters: {
+						// 		'SVG Files': ['svg']
+						// 	}
+						// });
+
+						// if (uri) {
+						// 	await vscode.workspace.fs.writeFile(uri, Buffer.from(this._diagram.asSvg(), 'utf8'));
+						// 	vscode.window.showInformationMessage('SVG saved successfully!');
+						// }
 						break;
 					case 'mermaid-source':
 						const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: this._diagram.content });
 						await vscode.window.showTextDocument(document);
 						this.checkForMermaidExtensions();
+						break;
+					case 'parse-result':
+						vscode.window.showInformationMessage('Parse result: ' + message.success);
+						logMessage(`Parse Result: ${JSON.stringify(message)}`);
+						this.parseDetails = message;
 						break;
 				}
 			},
@@ -112,13 +122,31 @@ export class DiagramEditorPanel {
 		}
 	}
 
-	private _update(diagram?: Diagram) {
+	private async _update(diagram?: Diagram): Promise<{ success: true} | { success: false, error: string }> {
 		if (diagram) {
 			this._diagram = diagram;
 		}
 		const webview = this._panel.webview;
 		this._panel.title = '@mermAId Diagram';
-		this._panel.webview.html = DiagramEditorPanel.getHtmlForWebview(webview, this._diagram.asSvg());
+
+		// TODO: This is not async safe
+		this.parseDetails = undefined;
+		this._panel.webview.html = DiagramEditorPanel.getHtmlToValidateMermaid(webview, this._diagram.content);
+
+		// wait for parseDetails to be set
+		return new Promise<{ success: true } | { success: false, error: string }>((resolve) => {
+			const interval = setInterval(() => {
+				if (this.parseDetails !== undefined) {
+					clearInterval(interval);
+					if (this.parseDetails.success) {
+						this._panel.webview.html = DiagramEditorPanel.getHtmlForWebview(webview, this._diagram.content);
+						resolve({ success: true });
+					} else {
+						resolve({ success: false, error: this.parseDetails.error });
+					}
+				}
+			}, 100);
+		});
 	}
 
 	private static getWebviewResources(webview: vscode.Webview) {
@@ -133,18 +161,59 @@ export class DiagramEditorPanel {
 		const stylesPathMainPath = vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'media', 'vscode.css');
 		const stylesCustom = vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'media', 'styles.css');
 		const codiconsPath = vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css');
+		const mermaidPath = vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'node_modules', 'mermaid', 'dist', 'mermaid.esm.min.mjs');
 
 		// Uri to load styles into webview
 		const stylesResetUri = webview.asWebviewUri(styleResetPath);
 		const stylesMainUri = webview.asWebviewUri(stylesPathMainPath);
 		const stylesCustomUri = webview.asWebviewUri(stylesCustom);
 		const codiconsUri = webview.asWebviewUri(codiconsPath);
+		const mermaidUri = webview.asWebviewUri(mermaidPath);
 
-		return { scriptUri, stylesResetUri, stylesMainUri, stylesCustomUri, codiconsUri };
+		return { scriptUri, stylesResetUri, stylesMainUri, stylesCustomUri, codiconsUri, mermaidUri };
 	}
 
-	public static getHtmlForWebview(webview: vscode.Webview, svg: string, additionalButtons: boolean = true) {
-		const { scriptUri, stylesResetUri, stylesMainUri, stylesCustomUri, codiconsUri } = DiagramEditorPanel.getWebviewResources(webview);
+	// Mermaid has a 'validate' api that can be used to check if a diagram is valid
+	public static getHtmlToValidateMermaid(webview: vscode.Webview, mermaidMd: string) {
+		const { mermaidUri } = DiagramEditorPanel.getWebviewResources(webview);
+		return `<!DOCTYPE html>
+			<html lang="en">
+			<body>
+				<p>Validating diagram....hang tight!</p>
+				
+				<script type="module">
+				 	const vscode = acquireVsCodeApi();
+					import mermaid from '${mermaidUri}';
+
+					const diagram = \`
+					${mermaidMd}
+					\`;
+
+					mermaid.parseError = function (err, hash) {
+						console.log('error parsing diagram');
+					    vscode.postMessage({
+                    		command: 'parse-result',
+							success: false,
+							error: JSON.stringify(err)
+                		});
+					};
+					const diagramType = await mermaid.parse(diagram);
+					console.log('after parse')
+					console.log(diagramType);
+					if (diagramType) {
+						vscode.postMessage({
+							command: 'parse-result',
+							success: true,
+							diagramType: diagramType
+						});
+					}
+				</script>
+			</body>
+		`;
+	}
+
+	public static getHtmlForWebview(webview: vscode.Webview, mermaidMd: string, additionalButtons: boolean = true) {
+		const { scriptUri, stylesResetUri, stylesMainUri, stylesCustomUri, codiconsUri, mermaidUri } = DiagramEditorPanel.getWebviewResources(webview);
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -186,12 +255,38 @@ export class DiagramEditorPanel {
 					</div>
 					<div id=mermaid-diagram class="diagram">
 						<div id=drag-handle class="dragHandle">
-							${svg}
+							<pre id='mermaid-diagram-pre' class="mermaid">
+							</pre>
 						</div>
 					</div>
 					
 			
 				<script additionalButtons='${additionalButtons}' src="${scriptUri}"></script>
+				<script type="module">
+					import mermaid from '${mermaidUri}';
+
+					// capture errors
+					// though we shouldn't have any since we've
+					// gone through the validation step already...
+					mermaid.parseError = function (err, hash) {
+						console.log('error parsing diagram');
+						console.log(err);
+					};
+
+					const diagram = \`
+					${mermaidMd}
+					\`;
+
+					// Place diagram into pre tag with the proper escaping
+					document.getElementById('mermaid-diagram-pre').innerHTML = diagram;
+
+					// DEBUG
+					console.log(document.getElementById('mermaid-diagram-pre').innerHTML);
+					
+					console.log('initializing mermaid');
+					mermaid.initialize({ startOnLoad: true,  securityLevel: 'loose' }); // loose needed to click links
+					console.log('done initializing mermaid');
+				</script>
 			</body>
 			</html>`;
 	}
@@ -205,7 +300,8 @@ function getWebviewOptions(): vscode.WebviewOptions {
 		// And restrict the webview to only loading content from our extension's `media` directory and the imported codicons.
 		localResourceRoots: [
 			vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'media'),
-			vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'node_modules', '@vscode/codicons', 'dist')
+			vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'node_modules', '@vscode/codicons', 'dist'),
+			vscode.Uri.joinPath(DiagramEditorPanel.extensionUri, 'node_modules', 'mermaid', 'dist'),
 		]
 	};
 }
