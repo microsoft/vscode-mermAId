@@ -2,33 +2,32 @@ import * as vscode from 'vscode';
 import { Diagram } from './diagram';
 
 export class DiagramDocument {
-    private content: string = '';
-    private document: vscode.TextDocument | undefined;
+    public static documents: Set<vscode.Uri> = new Set<vscode.Uri>();
 
-    constructor() {
-        vscode.workspace.onDidCloseTextDocument((doc) => {
-            if (this.document && doc.uri.toString() === this.document.uri.toString()) {
-                this.document = undefined;
+    public static async createAndShow(diagram: Diagram) {
+        const diagramDoc = new DiagramDocument(diagram.content);
+        const document = await diagramDoc.openDocument();
+        DiagramDocument.documents.add(document.uri);
+    }
+
+    private documentPromise: Thenable<vscode.TextDocument>;
+
+    private constructor(content: string) {
+        this.documentPromise = vscode.workspace.openTextDocument({ language: 'markdown', content });
+
+        const listener = vscode.workspace.onDidCloseTextDocument(async (doc) => {
+            const uri = (await this.documentPromise).uri;
+            if (doc.uri.toString() === uri.toString()) {
+                DiagramDocument.documents.delete(uri);
+                listener.dispose();
             }
         });
     }
 
-    async update(diagram: Diagram) {
-        this.content = diagram.content;
-        if (!this.document) {
-            this.document = await vscode.workspace.openTextDocument({ language: 'markdown', content: this.content });
-            await vscode.window.showTextDocument(this.document);
-            this.showPreview();
-        } else {
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(this.document.uri, new vscode.Range(0, 0, this.document.lineCount, 0), this.content);
-            await vscode.workspace.applyEdit(edit);
-        }
+    private async openDocument() {
+        const document = await this.documentPromise;
+        await vscode.window.showTextDocument(document);
+        return document;
     }
 
-    private showPreview() {
-        if (this.document) {
-            vscode.commands.executeCommand('markdown.showPreview', this.document.uri);
-        }
-    }
 }

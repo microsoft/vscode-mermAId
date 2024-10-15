@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Diagram } from './diagram';
 import { logMessage } from './extension';
 import { parse } from 'path';
-
+import { DiagramDocument } from './diagramDocument';
 
 export class DiagramEditorPanel {
 	/**
@@ -74,8 +74,7 @@ export class DiagramEditorPanel {
 						// }
 						break;
 					case 'mermaid-source':
-						const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: this._diagram.content });
-						await vscode.window.showTextDocument(document);
+						await DiagramDocument.createAndShow(this._diagram);
 						this.checkForMermaidExtensions();
 						break;
 					case 'parse-result':

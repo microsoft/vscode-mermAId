@@ -247,7 +247,7 @@ class RequestCommand extends PromptElement<RequestCommandProps, void> {
 			case 'uml':
 				return (
 					<>
-						<AssistantMessage>
+						<UserMessage>
 							The user asked for a UML diagram. Include all relevant classes in the file attached as context. You must use the tool mermAId_get_symbol_definition to get definitions of symbols
 							not defined in the current context. You should call it multiple times since you will likely need to get the definitions of multiple symbols.
 							Therefore for all classes you touch, explore their related classes using mermAId_get_symbol_definition to get their definitions and add them to the diagram.
@@ -262,8 +262,8 @@ class RequestCommand extends PromptElement<RequestCommandProps, void> {
 							Add the correct Cardinality / Multiplicity to associations like 1..n one to n where n is great than 1.
 							
 							Before returning the diagram, list all the class relationships and explain them."
-						</AssistantMessage>
-						<AssistantMessage>{docRef}</AssistantMessage>
+						</UserMessage>
+						<UserMessage>{docRef}</UserMessage>
 						<UserMessage>
 							Remember that all class associations/should be defined! If one class has an instance of another it should be connected it it in the UML diagram.
 						</UserMessage>
