@@ -12,10 +12,10 @@ export function registerCommands() {
 
         if (textContent) {
             const diagram = new Diagram(textContent);
-            const result = await diagram.generateWithValidation();
-            if (result.success) {
+            // const result = await diagram.generateWithValidation();
+            // if (result.success) {
                 DiagramEditorPanel.createOrShow(diagram);
-            }
+            // }
         }
     });
 
