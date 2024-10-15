@@ -210,7 +210,6 @@ class RequestCommand extends PromptElement<RequestCommandProps, void> {
 		const docRef = doc ? 
 			`The file the user currently has open is: ${doc.uri.fsPath} with contents: ${doc.getText()}` : 
 			`The user does not have any files open, the root of the workspace is: ${vscode.workspace.workspaceFolders?.[0]?.uri.fsPath}`;
-		logMessage(`docRef: ${docRef}`);
 		switch (this.props.commandName) {
 			case 'iterate':
 				// If diagram already exists
