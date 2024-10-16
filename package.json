@@ -183,6 +183,8 @@
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.36",
+    "dotenv": "^16.4.5",
+    "groq-sdk": "^0.7.0",
     "mermaid": "^11.3.0"
   }
 }

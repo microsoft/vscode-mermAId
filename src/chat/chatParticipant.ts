@@ -6,6 +6,8 @@ import { renderPrompt } from '@vscode/prompt-tsx';
 import { MermaidPrompt, ToolResultMetadata } from './mermaidPrompt';
 import { ToolCallRound } from './toolMetadata';
 import { COMMAND_OPEN_MARKDOWN_FILE } from '../commands';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 
 export function registerChatParticipant(context: vscode.ExtensionContext) {
     const handler: vscode.ChatRequestHandler = chatRequestHandler;
@@ -21,6 +23,12 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         vendor: 'copilot',
         family: 'gpt-4o'
     });
+    let groqEnabled = false;
+
+    if (request.command === 'iterate') {
+        groqEnabled = true;
+    
+    }
 
     const model = models[0];
 
@@ -59,6 +67,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
     const toolCallRounds: ToolCallRound[] = [];
     const runWithFunctions = async (): Promise<void> => {
 
+        // If the command is iterate, we need to check if there is a valid diagram, if not exit flow
         if (request.command === 'iterate') {
             const diagram = DiagramEditorPanel.currentPanel?.diagram;
             if (!diagram) {
@@ -70,93 +79,123 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         let isMermaidDiagramStreamingIn = false;
         let mermaidDiagram = '';
 
-        const response = await model.sendRequest(messages, options, token);
-        const toolCalls: vscode.LanguageModelToolCallPart[] = [];
+        let response;
+        if (groqEnabled) {
+            response = await callWithGroq(messages, stream);
+        } else {
+                response = await model.sendRequest(messages, options, token);
+        }   
 
-        let responseStr = '';
-        for await (const part of response.stream) {
-            if (part instanceof vscode.LanguageModelTextPart) {
-                if (!isMermaidDiagramStreamingIn && part.value.includes('```')) {
-                    // When we see a code block, assume it's a mermaid diagram
-                    stream.progress('Capturing mermaid diagram from the model...');
-                    isMermaidDiagramStreamingIn = true;
+            // const response = await model.sendRequest(messages, options, token);
+            const toolCalls: vscode.LanguageModelToolCallPart[] = [];
+
+            let responseStr = '';
+            let totalResponse = '';
+            for await (let part of response.stream) {
+                if (part !== null && 'choices' in (part as any)){
+                    // This is a hack to get around Groq return style and convert it the desired shape
+                    try {
+                        const partContent: string = (part as any).choices[0]?.delta?.content;
+                        if (partContent) {
+                            // do not translate if undefined
+                            part = new vscode.LanguageModelTextPart(partContent);
+                        }
+                        
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
+                if (part instanceof vscode.LanguageModelTextPart ) {
+                    if (!isMermaidDiagramStreamingIn && part.value.includes('``')) {
+                        // When we see a code block, assume it's a mermaid diagram
+                        stream.progress('Capturing mermaid diagram from the model...');
+                        isMermaidDiagramStreamingIn = true;
+                        totalResponse += part.value;
+                    }
+
+                    if (isMermaidDiagramStreamingIn) {
+                        // Gather the mermaid diagram so we can validate it
+                        mermaidDiagram += part.value;
+                    } else {
+                        // Otherwise, render the markdown normally
+                        stream.markdown(part.value);
+                        responseStr += part.value;
+                    }
+                } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                    toolCalls.push(part);
                 }
 
-                if (isMermaidDiagramStreamingIn) {
-                    // Gather the mermaid diagram so we can validate it
-                    mermaidDiagram += part.value;
-                } else {
-                    // Otherwise, render the markdown normally
-                    stream.markdown(part.value);
-                    responseStr += part.value;
+            }
+
+            if (toolCalls.length) {
+                toolCallRounds.push({
+                    response: responseStr,
+                    toolCalls
+                });
+                const result = (await renderPrompt(
+                    MermaidPrompt,
+                    {
+                        context: chatContext,
+                        request,
+                        toolCallRounds,
+                        toolCallResults: accumulatedToolResults,
+                        command: request.command
+                    },
+                    { modelMaxPromptTokens: model.maxInputTokens },
+                    model));
+                messages = result.messages;
+                const toolResultMetadata = result.metadatas.getAll(ToolResultMetadata);
+                if (toolResultMetadata?.length) {
+                    toolResultMetadata.forEach(meta => accumulatedToolResults[meta.toolCallId] = meta.result);
                 }
-            } else if (part instanceof vscode.LanguageModelToolCallPart) {
-                toolCalls.push(part);
-            }
 
-        }
-
-        if (toolCalls.length) {
-            toolCallRounds.push({
-                response: responseStr,
-                toolCalls
-            });
-            const result = (await renderPrompt(
-                MermaidPrompt,
-                {
-                    context: chatContext,
-                    request,
-                    toolCallRounds,
-                    toolCallResults: accumulatedToolResults,
-                    command: request.command
-                },
-                { modelMaxPromptTokens: model.maxInputTokens },
-                model));
-            messages = result.messages;
-            const toolResultMetadata = result.metadatas.getAll(ToolResultMetadata);
-            if (toolResultMetadata?.length) {
-                toolResultMetadata.forEach(meta => accumulatedToolResults[meta.toolCallId] = meta.result);
-            }
-
-            return runWithFunctions();
-        }
-
-        logMessage(mermaidDiagram);
-        isMermaidDiagramStreamingIn = false;
-
-        // Validate
-        stream.progress('Validating mermaid diagram');
-        const diagram = new Diagram(mermaidDiagram);
-        const result = await DiagramEditorPanel.createOrShow(diagram);
-
-        if (result.success) {
-            const openNewFileCommand: vscode.Command = {
-                command: COMMAND_OPEN_MARKDOWN_FILE,
-                title: vscode.l10n.t('Open mermaid source'),
-                arguments: [diagram.content]
-            };
-            stream.button(openNewFileCommand);
-            return;
-        }
-
-        // -- Handle parse error
-
-        logMessage(`Not successful (on retry=${++retries})`);
-        if (retries === 1) {
-            addNestingContext(messages);
-        }
-        if (retries < 4) {
-                stream.progress('Attempting to fix validation errors');
-                // we might be able to reset the messages to this message only
-                messages.push(vscode.LanguageModelChatMessage.User(`Please fix this mermaid parse error to make the diagram render correctly: ${result.error}. The produced diagram with the parse error is:\n${mermaidDiagram}`));
                 return runWithFunctions();
-        } {
-            if (result.error) {
-                logMessage(result.error);
             }
-            stream.markdown('Failed to display your requested mermaid diagram. Check output log for details.\n\n');
-            stream.markdown(mermaidDiagram);
-        }
+        
+
+            logMessage(mermaidDiagram);
+            isMermaidDiagramStreamingIn = false;
+
+            // Validate
+            stream.progress('Validating mermaid diagram');
+            const diagram = new Diagram(mermaidDiagram);
+            const result = await DiagramEditorPanel.createOrShow(diagram);
+
+            if (result.success) {
+                const openNewFileCommand: vscode.Command = {
+                    command: COMMAND_OPEN_MARKDOWN_FILE,
+                    title: vscode.l10n.t('Open mermaid source'),
+                    arguments: [diagram.content]
+                };
+                stream.button(openNewFileCommand);
+                return;
+            }
+
+            // -- Handle parse error
+
+            logMessage(`Not successful (on retry=${++retries})`);
+            if (retries === 1) {
+                
+                if (!mermaidDiagram.includes('mermaid')) {
+                    messages.push(vscode.LanguageModelChatMessage.User('Please add the `mermaid` keyword to the start of your diagram. Like this  \`\`\`mermaid '));
+                } else {
+                    addNestingContext(messages);
+                }
+            }
+            if (retries < 4) {
+                    stream.progress('Attempting to fix validation errors');
+                    // we might be able to reset the messages to this message only
+                    messages.push(vscode.LanguageModelChatMessage.User(`Please fix this mermaid parse error to make the diagram render correctly: ${result.error}. The produced diagram with the parse error is:\n${mermaidDiagram}`));
+                    return runWithFunctions();
+            } {
+                if (result.error) {
+                    logMessage(result.error);
+                }
+                stream.markdown('Failed to display your requested mermaid diagram. Check output log for details.\n\n');
+                stream.markdown(mermaidDiagram);
+            }
+        
+        stream.markdown("running with function go ");
     }; // End runWithFunctions()
 
     await runWithFunctions();
@@ -164,7 +203,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
 
 
 function addNestingContext(messages: vscode.LanguageModelChatMessage[]) {
-    messages.push(vscode.LanguageModelChatMessage.Assistant("Remember when creating the UML diagram in Mermaid, classes are represented as flat structures," +
+    messages.push(vscode.LanguageModelChatMessage.User("Remember when creating the UML diagram in Mermaid, classes are represented as flat structures," +
         " and Mermaid does not support nested class definitions. Instead, each class must be defined separately, and relationships between them must be explicitly stated." +
         "Use association to connect the main class to the nested class, using cardinality to denote relationships (e.g., one-to-many)." +
         " \n example of correct syntax: \n" +
@@ -186,7 +225,7 @@ function addNestingContext(messages: vscode.LanguageModelChatMessage[]) {
 }
 
 function specifyAssociations(messages: vscode.LanguageModelChatMessage[]) {
-    messages.push(vscode.LanguageModelChatMessage.Assistant("Remember that all class associations/should be defined. In this example:"
+    messages.push(vscode.LanguageModelChatMessage.User("Remember that all class associations/should be defined. In this example:"
         +
         `
             classDiagram
@@ -213,6 +252,55 @@ o-- Aggregation: Represents a "whole-part" relationship where the part can exist
 ..|> Realization: Represents an implementation relationship where a class implements an interface.
 .. Link (Dashed): Represents a weaker connection or relationship between instances of classes.
 `;
-    messages.push(vscode.LanguageModelChatMessage.Assistant(relationships));
+    messages.push(vscode.LanguageModelChatMessage.User(relationships));
 }
 
+function convertMessagesToGroq(messages: vscode.LanguageModelChatMessage[]): {role: string, content: string}[] {
+    const groqMessages = [];
+    for (const message of messages) {
+        if (message.role === 1) {
+            groqMessages.push({role:"user", content:message.content});
+        }
+    }
+    return groqMessages;
+}
+
+class GroqChatResponse implements vscode.LanguageModelChatResponse {
+    // seems like it needs both string and text but they represent the same thing?
+    public text: AsyncIterable<string>;
+    public stream: AsyncIterable<string>;
+    constructor(text: AsyncIterable<string>) {
+        this.text = text;
+        this.stream = text;
+    }
+}
+
+
+// Thenable<vscode.LanguageModelChatResponse> 
+async function callWithGroq(messages: vscode.LanguageModelChatMessage[], stream: vscode.ChatResponseStream): Promise<GroqChatResponse>{
+    const Groq = require('groq-sdk');
+    const envPath = path.resolve(__dirname, '../.env');
+
+    dotenv.config({path:envPath});
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+        throw new Error('GROQ_API_KEY environment variable is not set');
+    }
+    stream.markdown("using GROQ for request... \n");
+
+    const groq = new Groq({apiKey:apiKey});
+    const groqMessages = convertMessagesToGroq(messages);
+
+    const chatCompletion = await groq.chat.completions.create({
+        "messages": groqMessages,
+        "model": "llama3-8b-8192",
+        "temperature": 1,
+        "max_tokens": 1024,
+        "top_p": 1,
+        "stream": true,
+        "stop": null
+    });
+    return new GroqChatResponse(chatCompletion);
+
+
+}
