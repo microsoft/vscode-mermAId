@@ -23,7 +23,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         vendor: 'copilot',
         family: 'gpt-4o'
     });
-    let groqEnabled = false;
+    let groqEnabled = true;
 
     if (request.command === 'iterate') {
         groqEnabled = true;
@@ -95,22 +95,35 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
                 if (part !== null && 'choices' in (part as any)){
                     // This is a hack to get around Groq return style and convert it the desired shape
                     try {
+                        const justDelta = (part as any).choices[0]?.delta;
+                        const toolCall = (part as any).choices[0]?.delta?.tool_calls;
                         const partContent: string = (part as any).choices[0]?.delta?.content;
                         if (partContent) {
                             // do not translate if undefined
                             part = new vscode.LanguageModelTextPart(partContent);
+                        }
+                        if (toolCall) {
+                            // str str obj
+                            //part = new vscode.LanguageModelToolCallPart("", id, param);
+                            const args = toolCall[0].function.arguments;
+                            const argsParsed = JSON.parse(toolCall[0].function.arguments);
+                            const meme = "mermAId_get_symbol_definition";
+                            const id = toolCall[0].id;
+                            part = new vscode.LanguageModelToolCallPart(meme, id, argsParsed);
                         }
                         
                     } catch (e) {
                         console.log(e);
                     }
                 }
+                totalResponse += (part as any).value;
+                logMessage((part as any).value);
                 if (part instanceof vscode.LanguageModelTextPart ) {
+                    logMessage("EJFB text incoming");
                     if (!isMermaidDiagramStreamingIn && part.value.includes('``')) {
                         // When we see a code block, assume it's a mermaid diagram
                         stream.progress('Capturing mermaid diagram from the model...');
                         isMermaidDiagramStreamingIn = true;
-                        totalResponse += part.value;
                     }
 
                     if (isMermaidDiagramStreamingIn) {
@@ -122,6 +135,8 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
                         responseStr += part.value;
                     }
                 } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                    logMessage("EJFB call tool");
+
                     toolCalls.push(part);
                 }
 
@@ -157,6 +172,8 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
             isMermaidDiagramStreamingIn = false;
 
             // Validate
+            logMessage("validate mermaid diagram");
+
             stream.progress('Validating mermaid diagram');
             const diagram = new Diagram(mermaidDiagram);
             const result = await DiagramEditorPanel.createOrShow(diagram);
@@ -278,6 +295,7 @@ class GroqChatResponse implements vscode.LanguageModelChatResponse {
 
 // Thenable<vscode.LanguageModelChatResponse> 
 async function callWithGroq(messages: vscode.LanguageModelChatMessage[], stream: vscode.ChatResponseStream): Promise<GroqChatResponse>{
+    logMessage("EJFB calling with groq");
     const Groq = require('groq-sdk');
     const envPath = path.resolve(__dirname, '../.env');
 
@@ -289,18 +307,76 @@ async function callWithGroq(messages: vscode.LanguageModelChatMessage[], stream:
     stream.markdown("using GROQ for request... \n");
 
     const groq = new Groq({apiKey:apiKey});
+    // messages.push(vscode.LanguageModelChatMessage.User('Please use the tool calling!!! I want to check if it works!!'));
     const groqMessages = convertMessagesToGroq(messages);
+
+    const tools = [
+        {
+            type: "function",
+            function: {
+                name: "mermAId_get_symbol_definition",
+                description: "Given a file path string and a list of symbols, this model returns the definitions of the specified symbols. For example, if the file 'x.py' is provided and the symbol 'abc' is requested, the model will find 'abc' in 'x.py' and return its definition from the file where it is actually defined, such as 'y.py'.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        symbols: {
+                            type: "array",
+                            items: {
+                                "type": "string"
+                            },
+                            description: "A list of symbols in the file to get the definition for.",
+                        },
+                        fileString: {
+                            type: "string",
+                            description: "The path to the file represented as a string where you are finding these symbols you want to get the definition for. Or undefined if the location of the symbol is unknown.",
+                        }
+                    },
+                    required: ["symbols", "fileString"],
+                },
+            },
+        }
+    ];
+
+
 
     const chatCompletion = await groq.chat.completions.create({
         "messages": groqMessages,
-        "model": "llama3-8b-8192",
+        "model": "llama3-groq-70b-8192-tool-use-preview",
         "temperature": 1,
         "max_tokens": 1024,
         "top_p": 1,
         "stream": true,
-        "stop": null
+        "stop": null,
+        "tools": tools,
+        "tool_choice": "auto",
     });
+
+    // for await (const chunk of chatCompletion) {
+    //     const str = chunk.choices[0]?.delta;
+    //     if (str.tool_calls) {
+    //         logMessage('tool call');
+    //     }
+    //     logMessage(JSON.stringify(chunk.choices[0]));
+    //     // console.log(chunk.choices[0]?.delta?.content || '');
+    //     // const responseMessage = chatCompletion.choices[0].message;
+
+    //     // const toolCalls = responseMessage.tool_calls;
+    // }
+    
+
+    logMessage("EJFB returning groq");
+
     return new GroqChatResponse(chatCompletion);
 
-
 }
+
+    // function calculate() {
+    //     try {
+    //         // Note: Using eval() in JavaScript can be dangerous.
+    //         // In a production environment, you should use a safer alternative.
+    //         const result = eval(expression);
+    //         return JSON.stringify({ result });
+    //     } catch {
+    //         return JSON.stringify({ error: "Invalid expression" });
+    //     }
+    // }
