@@ -22,9 +22,6 @@
     "groq",
     "chat"
   ],
-  "enabledApiProposals": [
-    "lmTools"
-  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -245,7 +242,6 @@
     "vscode:prepublish": "npm run compile",
     "compile": "webpack",
     "watch": "webpack --watch",
-    "postinstall": "npx vscode-dts dev",
     "package": "webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
