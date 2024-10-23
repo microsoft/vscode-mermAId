@@ -48,7 +48,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         toolCallRounds: [],
         toolCallResults: {},
         command: request.command,
-        validationError : undefined
+        validationError: undefined
     }, stream, developmentMode);
 
     references.forEach(ref => {
@@ -61,6 +61,9 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
     const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
     const toolCallRounds: ToolCallRound[] = [];
     const runWithFunctions = async (): Promise<void> => {
+        if (token.isCancellationRequested) {
+            return;
+        }
 
         if (request.command === 'help') {
             stream.markdown(`
@@ -160,34 +163,41 @@ Good luck and happy diagramming!
 
         // -- Handle parse error
         logMessage(`Not successful (on retry=${++retries})`);
-        if (retries === 1) {
-            addNestingContext(toVsCodeChatMessages(messages));
-        }
-        if (retries < 4) {
+        if (retries === 1 && mermaidDiagram.indexOf('classDiagram') !== -1) {
+            stream.progress('Attempting to fix validation errors');
+            validationError = getValidationErrorMessage(result.error, mermaidDiagram, true);
+            return runWithFunctions();
+        } else if (retries < 3) {
             stream.progress('Attempting to fix validation errors');
             // we might be able to reset the messages to this message only
-            validationError = `Please fix this mermaid parse error to make the diagram render correctly: ${result.error}. The produced diagram with the parse error is:\n${mermaidDiagram}`;
+            validationError = getValidationErrorMessage(result.error, mermaidDiagram, false);
             return runWithFunctions();
-        } {
+        } else {
             if (result.error) {
                 logMessage(result.error);
             }
             stream.markdown('Failed to display your requested mermaid diagram. Check output log for details.\n\n');
-            stream.markdown(mermaidDiagram);
+            return;
         }
-        
+
     }; // End runWithFunctions()
 
     await runWithFunctions();
 }
 
+function getValidationErrorMessage(error: string, diagram: string, uml: boolean) {
+    let message = `Please fix this mermaid parse error to make the diagram render correctly: ${error}. The produced diagram with the parse error is:\n${diagram}`;
+    if (uml) {
+        message += fixUmlMessage;
+    }
+    return message;
+}
 
-function addNestingContext(messages: vscode.LanguageModelChatMessage[]) {
-    messages.push(vscode.LanguageModelChatMessage.Assistant("Remember when creating the UML diagram in Mermaid, classes are represented as flat structures," +
-        " and Mermaid does not support nested class definitions. Instead, each class must be defined separately, and relationships between them must be explicitly stated." +
-        "Use association to connect the main class to the nested class, using cardinality to denote relationships (e.g., one-to-many)." +
-        " \n example of correct syntax: \n" +
-        `
+const fixUmlMessage = "\nRemember when creating the UML diagram in Mermaid, classes are represented as flat structures," +
+    " and Mermaid does not support nested class definitions. Instead, each class must be defined separately, and relationships between them must be explicitly stated." +
+    "Use association to connect the main class to the nested class, using cardinality to denote relationships (e.g., one-to-many)." +
+    " \n example of correct syntax: \n" +
+    `
                 classDiagram
                     class House {
                         string address
@@ -201,5 +211,4 @@ function addNestingContext(messages: vscode.LanguageModelChatMessage[]) {
                     }
                                     
                     House "1" --> "1" Kitchen : kitchen
-                `));
-}
+                `;
