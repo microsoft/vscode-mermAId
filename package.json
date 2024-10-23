@@ -6,7 +6,7 @@
   "version": "0.0.1",
   "icon": "assets/logo.png",
   "engines": {
-    "vscode": "^1.94.0"
+    "vscode": "^1.95.0"
   },
   "categories": [
     "Chat",
@@ -21,6 +21,9 @@
     "copilot",
     "groq",
     "chat"
+  ],
+  "extensionDependencies": [
+    "GitHub.copilot-chat"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -155,7 +158,7 @@
         {
           "type": "webview",
           "id": "mermaid-outline-diagram",
-          "name": "Outline"
+          "name": "Visual Outline"
         }
       ]
     },
@@ -228,7 +231,7 @@
       {
         "command": "copilot-mermAId-diagram.open-in-window-from-outline",
         "title": "Open Outline in Window",
-        "icon": "$(new-file)"
+        "icon": "$(preview)"
       },
       {
         "command": "copilot-mermAId-diagram.view-markdown-source-from-outline",

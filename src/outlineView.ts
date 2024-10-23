@@ -480,7 +480,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                     <span style="margin-left: 8px;">to regenerate</span>
                 </div>
                 <div style="display: flex; align-items: center;">
-                    <i class="codicon codicon-pinned"></i>
+                    <i class="codicon codicon-pin"></i>
                     <span style="margin-left: 8px;">to follow the active document</span>
                 </div>
                 </div>
