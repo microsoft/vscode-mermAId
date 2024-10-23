@@ -64,7 +64,7 @@ export function convertMessagesToGroq(messages: (vscode.LanguageModelChatMessage
     const groqMessages = [];
     for (const message of messages) {
         if (message instanceof vscode.LanguageModelChatMessage) {
-            groqMessages.push(new GroqChatUserMessage(message.content));
+            groqMessages.push(new GroqChatUserMessage(message.content2.join('/n')));
             if (message.content2 && message.content2 instanceof vscode.LanguageModelChatMessage) {
                 // add in tool call response
                 const r = message.content2;

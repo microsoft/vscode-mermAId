@@ -119,7 +119,9 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
             });
         } catch (e) {
             logMessage(`UNHANDLED error generating outline diagram (cancelled=${cancellationToken.isCancellationRequested}): ${e}`);
-            this.setContinueInChatPage();
+            if (e instanceof Error && e.message.includes("Invalid API Key")) {
+                vscode.window.showErrorMessage(`Invalid API Key for GROQ`);
+            }
         }
     }
 

@@ -5,7 +5,7 @@ import { DiagramEditorPanel } from '../diagramEditorPanel';
 import { renderPrompt, toVsCodeChatMessages } from '@vscode/prompt-tsx';
 import { MermaidPrompt, ToolResultMetadata } from './mermaidPrompt';
 import { ToolCallRound } from './toolMetadata';
-import { COMMAND_OPEN_MARKDOWN_FILE } from '../commands';
+import { COMMAND_OPEN_DIAGRAM_SVG, COMMAND_OPEN_MARKDOWN_FILE } from '../commands';
 import { renderMessages } from './chatHelpers';
 
 let developmentMode = false;
@@ -149,12 +149,12 @@ Good luck and happy diagramming!
         const result = await DiagramEditorPanel.createOrShow(diagram);
 
         if (result.success) {
-            const openNewFileCommand: vscode.Command = {
-                command: COMMAND_OPEN_MARKDOWN_FILE,
-                title: vscode.l10n.t('Open mermaid source'),
+            const openMermaidDiagramCommand: vscode.Command = {
+                command: COMMAND_OPEN_DIAGRAM_SVG,
+                title: vscode.l10n.t('Open mermaid diagram'),
                 arguments: [diagram.content]
             };
-            stream.button(openNewFileCommand);
+            stream.button(openMermaidDiagramCommand);
             return;
         }
 
