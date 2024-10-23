@@ -22,6 +22,9 @@
     "groq",
     "chat"
   ],
+  "extensionDependencies": [
+    "GitHub.copilot-chat"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
