@@ -29,6 +29,9 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage('groq API key stored successfully');
             registerGroqTool(context);
         }
+        else {
+            vscode.window.showInformationMessage('No API key entered. The groq API key was not stored.');
+        }
     });
 
     context.subscriptions.push(storeSecretCommand);
