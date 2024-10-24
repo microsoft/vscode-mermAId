@@ -87,6 +87,10 @@ export function registerOutlineView(context: vscode.ExtensionContext) {
             }
             await DiagramEditorPanel.createOrShow(outlineView.diagram);
         }),
+        vscode.commands.registerCommand('copilot-mermAId-diagram.continue-in-chat', async () => {
+            await vscode.commands.executeCommand('workbench.action.chat.open');
+            await vscode.commands.executeCommand('workbench.action.chat.sendToNewChat', { inputValue: '@mermAId /help' });
+        }),
     );
 
     // Listen for active text editor change
@@ -167,8 +171,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                 switch (message.command) {
                     case 'continue-in-chat':
                         logMessage('Continuing in chat from outline view...');
-                        await vscode.commands.executeCommand('workbench.action.chat.open');
-                        await vscode.commands.executeCommand('workbench.action.chat.sendToNewChat', { inputValue: '@mermAId /help' });
+                        await vscode.commands.executeCommand('copilot-mermAId-diagram.continue-in-chat');
                         this.setLandingPage();
                         break;
                     case 'mermaid-source':

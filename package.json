@@ -195,6 +195,11 @@
           "command": "copilot-mermAId-diagram.disable-follow-outline",
           "when": "view == mermaid-outline-diagram && copilot-mermAId-diagram.followActiveDocument",
           "group": "navigation"
+        },
+        {
+          "command": "copilot-mermAId-diagram.continue-in-chat",
+          "when": "view == mermaid-outline-diagram",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
@@ -237,6 +242,11 @@
         "command": "copilot-mermAId-diagram.view-markdown-source-from-outline",
         "title": "View Markdown Source",
         "icon": "$(markdown)"
+      },
+      {
+        "command": "copilot-mermAId-diagram.continue-in-chat",
+        "title": "Continue in Chat",
+        "icon": "$(comment-discussion)"
       },
       {
         "command": "mermAId.openDiagramSvg",
