@@ -16,6 +16,9 @@ export interface WebviewResources {
 
 const diagramIsActive = 'copilot-mermAId-diagram.diagramIsActive';
 
+export type ParseDetails = { success: true; nonce: string } | { success: false; error: string; nonce: string; friendlyError?: string };
+
+
 export class DiagramEditorPanel {
 	/**
 	 * Tracks the current panel. Only allows a single panel to exist at a time.
@@ -24,7 +27,7 @@ export class DiagramEditorPanel {
 	public static readonly viewType = 'mermaidDiagram';
 	public static extensionUri: vscode.Uri;
 	private readonly _panel: vscode.WebviewPanel;
-	private parseDetails: { success: boolean, error: string } | undefined = undefined;
+	private parseDetails: ParseDetails[] = [];
 	private _disposables: vscode.Disposable[] = [];
 	private absolutePathRegex = new RegExp('^([a-zA-Z]:)?[\\/\\\\]');
 
@@ -84,7 +87,7 @@ export class DiagramEditorPanel {
 						break;
 					case 'parse-result':
 						logMessage(`(Chat) Parse Result: ${JSON.stringify(message)}`);
-						this.parseDetails = message;
+						this.parseDetails.push(message);
 						break;
 					case 'navigate':
 						const decoded = decodeURI(message.path);
@@ -156,20 +159,20 @@ export class DiagramEditorPanel {
 		const webview = this._panel.webview;
 		this._panel.title = '@mermAId Diagram';
 
-		//jospicer TODO: This doesn't feel async safe. Rethink - lock?
-		this.parseDetails = undefined;
-		this._panel.webview.html = DiagramEditorPanel.getHtmlToValidateMermaid(webview, this._diagram);
+		const nonce = new Date().getTime().toString();
+		this._panel.webview.html = DiagramEditorPanel.getHtmlToValidateMermaid(webview, this._diagram, nonce);
 
-		// wait for parseDetails to be set
+		// wait for parseDetails with the expected nonce value to be set
 		return new Promise<{ success: true } | { success: false, error: string }>((resolve) => {
 			const interval = setInterval(() => {
-				if (this.parseDetails !== undefined) {
+				const pd = this.parseDetails.find((p) => p.nonce === nonce);
+				if (pd) {
 					clearInterval(interval);
-					if (this.parseDetails.success) {
+					if (pd.success) {
 						this._panel.webview.html = DiagramEditorPanel.getHtmlForWebview(webview, this._diagram);
 						resolve({ success: true });
 					} else {
-						resolve({ success: false, error: this.parseDetails.error });
+						resolve({ success: false, error: pd.error });
 					}
 				}
 			}, 100);
@@ -204,7 +207,7 @@ export class DiagramEditorPanel {
 	}
 
 	// Mermaid has a 'validate' api that can be used to check if a diagram is valid
-	public static getHtmlToValidateMermaid(webview: vscode.Webview, diagram: Diagram) {
+	public static getHtmlToValidateMermaid(webview: vscode.Webview, diagram: Diagram, nonce: string) {
 		const { mermaidUri, animatedGraphUri } = DiagramEditorPanel.getWebviewResources(webview);
 		return `<!DOCTYPE html>
 			<html lang="en">
@@ -236,6 +239,7 @@ export class DiagramEditorPanel {
 							success: false,
 							error: JSON.stringify(err),
 							diagram,
+							nonce: '${nonce}'
 						});
 					};
 					const diagramType = await mermaid.parse(diagram);
@@ -244,7 +248,8 @@ export class DiagramEditorPanel {
 						vscode.postMessage({
 							command: 'parse-result',
 							success: true,
-							diagramType: diagramType
+							diagramType: diagramType,
+							nonce: '${nonce}'
 						});
 					}
 				</script>

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { logMessage } from './extension';
 import { IToolCall } from './chat/chatHelpers';
 import { Diagram } from './diagram';
-import { DiagramEditorPanel, WebviewResources } from './diagramEditorPanel';
+import { DiagramEditorPanel, ParseDetails, WebviewResources } from './diagramEditorPanel';
 import { DiagramDocument } from './diagramDocument';
 import { groqEnabled, callWithGroq as sendGroqRequest } from './groqHandler';
 import { checkForMermaidExtensions, formatMermaidErrorToNaturalLanguage } from './mermaidHelpers';
@@ -17,11 +17,12 @@ Only ever include the \`\`\` delimiter in the two places mentioned above.
 Do not include any other text before or after the diagram, only include the diagram.
 `;
 
+const followOutlineContextKey = 'copilot-mermAId-diagram.followActiveDocument';
+const isShowingDiagramContextKey = 'copilot-mermAId-diagram.isShowingDiagram';
 let outlineViewCancellationTokenSource: vscode.CancellationTokenSource | undefined;
 let followActiveDocument = false;
 let lastFocusedDocumentUri: vscode.Uri | undefined = undefined;
-const followOutlineContextKey = 'copilot-mermAId-diagram.followActiveDocument';
-const isShowingDiagramContextKey = 'copilot-mermAId-diagram.isShowingDiagram';
+
 
 export function registerOutlineView(context: vscode.ExtensionContext) {
     const outlineView = new OutlineViewProvider(context);
@@ -113,7 +114,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
 
     private _view?: vscode.WebviewView;
     private _webviewResources?: WebviewResources;
-    private parseDetails: { success: true } | { success: false; error: string; friendlyError?: string } | undefined = undefined;
+    private parseDetails: ParseDetails[] = [];
     private _diagram?: Diagram;
 
     public get diagram(): Diagram | undefined {
@@ -182,11 +183,12 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                         logMessage(`(Outline) Parse Result: ${JSON.stringify(message)}`);
                         const friendlyError: string | undefined = formatMermaidErrorToNaturalLanguage(message);
                         // Setting this field will move state forward
-                        this.parseDetails = {
+                        this.parseDetails.push({
                             success: message.success ?? false,
                             error: message?.error,
+                            nonce: message.nonce,
                             friendlyError
-                        };
+                        });
                         break;
                     default:
                         logMessage(`(Outline) Unhandled message: ${JSON.stringify(message)}`);
@@ -415,18 +417,20 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
         if (cancellationToken.isCancellationRequested) {
             return { success: false, error: 'Cancelled' };
         }
-        this.parseDetails = undefined; // TODO: This feels race-y.
         if (!this._view) {
             logMessage('FAIL! No view found - where did it go!');
             return { success: false, error: 'No view found. This is unexpected.' };
         }
-        this._view.webview.html = DiagramEditorPanel.getHtmlToValidateMermaid(this._view.webview, candidateNextDiagram);
+
+        const nonce = new Date().getTime().toString();
+        this._view.webview.html = DiagramEditorPanel.getHtmlToValidateMermaid(this._view.webview, candidateNextDiagram, nonce);
         // wait for parseDetails to be set via message posted from webview
         return new Promise<{ success: true } | { success: false; error: string; friendlyError?: string }>((resolve) => {
             const interval = setInterval(() => {
-                if (this.parseDetails !== undefined) {
+                const pd = this.parseDetails.find((p) => p.nonce === nonce);
+                if (pd) {
                     clearInterval(interval);
-                    if (this.parseDetails.success) {
+                    if (pd.success) {
                         if (!this._view) {
                             logMessage('FAIL! No view found - where did it go!');
                             return { success: false, error: 'No view found. This is unexpected.' };
@@ -438,7 +442,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                         this._diagram = candidateNextDiagram;
                         resolve({ success: true });
                     } else {
-                        resolve({ success: false, error: this.parseDetails.error });
+                        resolve({ success: false, error: pd.error });
                     }
                 }
             }, 100);
