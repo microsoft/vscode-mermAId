@@ -60,6 +60,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
     let retries = 0;
     const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
     const toolCallRounds: ToolCallRound[] = [];
+
     const runWithFunctions = async (): Promise<void> => {
         if (token.isCancellationRequested) {
             return;
@@ -98,7 +99,6 @@ Good luck and happy diagramming!
         const toolCalls: vscode.LanguageModelToolCallPart[] = [];
 
         let responseStr = '';
-        let validationError: string | undefined;
         for await (const part of response.stream) {
             if (part instanceof vscode.LanguageModelTextPart) {
                 if (!isMermaidDiagramStreamingIn && part.value.includes('```')) {
@@ -132,7 +132,7 @@ Good luck and happy diagramming!
                 toolCallRounds,
                 toolCallResults: accumulatedToolResults,
                 command: request.command,
-                validationError
+                validationError: undefined
             }, stream, developmentMode);
             messages = result.messages;
             const toolResultMetadata = result.metadata.getAll(ToolResultMetadata);
@@ -149,9 +149,9 @@ Good luck and happy diagramming!
         // Validate
         stream.progress('Validating mermaid diagram');
         const diagram = new Diagram(mermaidDiagram);
-        const result = await DiagramEditorPanel.createOrShow(diagram);
+        const diagramResult = await DiagramEditorPanel.createOrShow(diagram);
 
-        if (result.success) {
+        if (diagramResult.success) {
             const openMermaidDiagramCommand: vscode.Command = {
                 command: COMMAND_OPEN_DIAGRAM_SVG,
                 title: vscode.l10n.t('Open mermaid diagram'),
@@ -162,19 +162,30 @@ Good luck and happy diagramming!
         }
 
         // -- Handle parse error
-        logMessage(`Not successful (attempt=${++retries})`);
-        if (retries === 1 && mermaidDiagram.indexOf('classDiagram') !== -1) {
-            stream.progress('Attempting to fix validation errors');
-            validationError = getValidationErrorMessage(result.error, mermaidDiagram, true);
-            return runWithFunctions();
-        } else if (retries < 3) {
-            stream.progress('Attempting to fix validation errors');
-            // we might be able to reset the messages to this message only
-            validationError = getValidationErrorMessage(result.error, mermaidDiagram, false);
+        logMessage(`Not successful (on retry=${++retries})`);
+        if (retries < 3) {
+            let validationError = '';
+            if (retries === 1 && mermaidDiagram.indexOf('classDiagram') !== -1) {
+                stream.progress('Attempting to fix validation errors');
+                validationError = getValidationErrorMessage(diagramResult.error, mermaidDiagram, true);
+            } else {
+                stream.progress('Attempting to fix validation errors');
+                validationError = getValidationErrorMessage(diagramResult.error, mermaidDiagram, false);
+            }
+            // tool call results should all be cached, but we need to re-render the prompt with the error message
+            const result = await renderMessages(model, {
+                context: chatContext,
+                request,
+                toolCallRounds,
+                toolCallResults: accumulatedToolResults,
+                command: request.command,
+                validationError
+            }, stream, developmentMode);
+            messages = result.messages;
             return runWithFunctions();
         } else {
-            if (result.error) {
-                logMessage(result.error);
+            if (diagramResult.error) {
+                logMessage(diagramResult.error);
             }
             stream.markdown('Failed to display your requested mermaid diagram. Check output log for details.\n\n');
             return;
@@ -186,7 +197,7 @@ Good luck and happy diagramming!
 }
 
 function getValidationErrorMessage(error: string, diagram: string, uml: boolean) {
-    let message = `Please fix this mermaid parse error to make the diagram render correctly: ${error}. The produced diagram with the parse error is:\n${diagram}`;
+    let message = `Please fix this mermaid parse error to make the diagram render correctly: ${error}.\n Here is the diagram you provided:\n${diagram}`;
     if (uml) {
         message += fixUmlMessage;
     }
