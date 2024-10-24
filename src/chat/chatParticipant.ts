@@ -162,7 +162,7 @@ Good luck and happy diagramming!
         }
 
         // -- Handle parse error
-        logMessage(`Not successful (on retry=${++retries})`);
+        logMessage(`Not successful (attempt=${++retries})`);
         if (retries === 1 && mermaidDiagram.indexOf('classDiagram') !== -1) {
             stream.progress('Attempting to fix validation errors');
             validationError = getValidationErrorMessage(result.error, mermaidDiagram, true);

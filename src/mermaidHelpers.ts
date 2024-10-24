@@ -59,13 +59,12 @@ export function formatMermaidErrorToNaturalLanguage(parseResult: any): string | 
                 // Get full line of the error
                 const lines = diagram.split('\n');
                 errorLineInDiagram = lines[lineNum];
-                logMessage(`DEBUG: errorLine (lineNo=${lineNum}): ${errorLineInDiagram}`);
             }
 
             let tokenMsg: string | undefined;
             if (mermaidError.hash.token && mermaidError.hash.expected.length) {
                 const expected = mermaidError.hash.expected.join(', ');
-                return `with token type '${mermaidError.hash.token}', where we expected one of: '${expected}'.`;
+                tokenMsg = `with token type '${mermaidError.hash.token}', where we expected one of: '${expected}'.`;
             }
 
             // Give a nice line to feed back into the LLM
