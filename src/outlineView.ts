@@ -19,6 +19,7 @@ Do not include any other text before or after the diagram, only include the diag
 
 let outlineViewCancellationTokenSource: vscode.CancellationTokenSource | undefined;
 let followActiveDocument = false;
+let lastFocusedDocumentUri: vscode.Uri | undefined = undefined;
 const followOutlineContextKey = 'copilot-mermAId-diagram.followActiveDocument';
 const isShowingDiagramContextKey = 'copilot-mermAId-diagram.isShowingDiagram';
 
@@ -32,19 +33,39 @@ export function registerOutlineView(context: vscode.ExtensionContext) {
         )
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand('copilot-mermAId-diagram.refresh-outline', () => {
+        vscode.commands.registerCommand('copilot-mermAId-diagram.refresh-outline', (documentUri: vscode.Uri) => {
             // Cancel the previous token if it exists
             if (outlineViewCancellationTokenSource) {
                 outlineViewCancellationTokenSource.cancel();
             }
+
+            if (!documentUri) {
+                const visibleDocuments = vscode.window.visibleTextEditors;
+                if (lastFocusedDocumentUri) {
+                    documentUri = lastFocusedDocumentUri;
+                } else if (visibleDocuments.length && visibleDocuments[0].document.uri.scheme === 'file') {
+                    const visableDocumentUri = visibleDocuments[0].document.uri;
+                    logMessage(`No active document so selecting first visible document: ${visableDocumentUri}`);
+                    documentUri = visableDocumentUri;
+                } else {
+                    logMessage('No document found to refresh outline');
+                    // warning
+                    vscode.window.showWarningMessage('Focus a text file to generate an outline');
+                    return;
+                }
+            }
+
             outlineViewCancellationTokenSource = new vscode.CancellationTokenSource();
-            outlineView.generateOutlineDiagram(outlineViewCancellationTokenSource.token);
+            outlineView.generateOutlineDiagram(documentUri, outlineViewCancellationTokenSource.token);
         }),
         vscode.commands.registerCommand('copilot-mermAId-diagram.enable-follow-outline', () => {
             followActiveDocument = true;
             vscode.commands.executeCommand('setContext', followOutlineContextKey, true);
             // trigger a refresh on command to following the diagram
-            vscode.commands.executeCommand('copilot-mermAId-diagram.refresh-outline');
+            const activeTextEditor = vscode.window.activeTextEditor;
+            if (activeTextEditor && activeTextEditor.document?.uri?.scheme === 'file') {
+                vscode.commands.executeCommand('copilot-mermAId-diagram.refresh-outline', activeTextEditor.document.uri);
+            }
 
         }),
         vscode.commands.registerCommand('copilot-mermAId-diagram.disable-follow-outline', () => {
@@ -68,15 +89,21 @@ export function registerOutlineView(context: vscode.ExtensionContext) {
     );
 
     // Listen for active text editor change
+    // Keep track of the last _valid_ active document in case the user
+    // swaps to something like an output view (which also triggers this event)
     vscode.window.onDidChangeActiveTextEditor((e: vscode.TextEditor | undefined) => {
         if (!e) {
             logMessage('Active document changed to: none');
             return;
         }
-        logMessage(`Active document changed to: ${e.document?.fileName} (scheme=${e.document?.uri?.scheme})`);
-        if (followActiveDocument && e.document?.uri?.scheme === 'file') {
-            logMessage('Refreshing outline diagram');
-            vscode.commands.executeCommand('copilot-mermAId-diagram.refresh-outline');
+
+        logMessage(`Active document changed to '${e.document?.fileName}' (scheme=${e.document?.uri?.scheme})`);
+        if (e.document?.uri?.scheme === 'file') { // TODO: Be stricter?
+            lastFocusedDocumentUri = e.document.uri;
+            if (followActiveDocument) {
+                logMessage('Refreshing outline diagram');
+                vscode.commands.executeCommand('copilot-mermAId-diagram.refresh-outline', e.document.uri);
+            }
         }
     });
 }
@@ -93,7 +120,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
         return this._diagram;
     }
 
-    public async generateOutlineDiagram(cancellationToken: vscode.CancellationToken) {
+    public async generateOutlineDiagram(documentUri: vscode.Uri, cancellationToken: vscode.CancellationToken) {
         if (!this._view) {
             return;
         }
@@ -105,7 +132,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                 title: 'Generating outline diagram',
             }, async (progress, _) => {
                 this.setGeneratingPage();
-                const { success } = await this.promptLLMToUpdateWebview(cancellationToken);
+                const { success } = await this.promptLLMToUpdateWebview(documentUri, cancellationToken);
                 if (cancellationToken.isCancellationRequested) {
                     logMessage('Cancellation requested, not updating webview');
                     return;
@@ -171,8 +198,8 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
         this.setLandingPage();
     }
 
-    private async promptLLMToUpdateWebview(cancellationToken: vscode.CancellationToken) {
-        const doc = vscode.window.activeTextEditor?.document;
+    private async promptLLMToUpdateWebview(documentUri: vscode.Uri, cancellationToken: vscode.CancellationToken) {
+        const doc = vscode.workspace.textDocuments.find(d => d.uri === documentUri);
         if (!doc || !this._view) {
             return { success: false, error: 'No document or view' };
         }
@@ -189,7 +216,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                     description: tool.description,
                     parametersSchema: tool.parametersSchema ?? {}
                 };
-            }),
+            }).filter(tool => tool.name === 'copilot_codebase' || tool.name === 'mermAId_get_symbol_definition'),
         };
         logMessage(`Available tools: ${options.tools?.map(tool => tool.name)?.join(', ')}`);
         if (cancellationToken.isCancellationRequested) {
@@ -214,7 +241,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Recursive
-        let retries = 0;
+        let retry = 0;
         const runWithTools = async () => {
             const toolCalls: IToolCall[] = [];
             let mermaidDiagram = '';
@@ -298,7 +325,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                 }
             } // done with stream loop
 
-            logMessage(`Received candidate mermaid outline, moving to validation, for file: ${mermaidDiagram}`);
+            logMessage(`Received candidate mermaid outline, moving to validation`);
             logMessage(mermaidDiagram);
 
             // Validate the diagram
@@ -324,8 +351,8 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
 
             //  -- Handle parse error
 
-            logMessage(`Outline generation not success (on retry ${++retries})`); // seen some with diagram = ```
-            if (retries < 4) {
+            logMessage(`Outline generation not success (attempt=${++retry})`);
+            if (retry < 4) {
 
                 // --- Try to manually fix
 
@@ -370,7 +397,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                     );
                 }
 
-                if (retries === 2) {
+                if (retry === 2) {
                     // Disable groq for the third retry since OpenAI can be more dependable
                     logMessage('Disabling groq for the third retry');
                     localGroqEnabled = false;
