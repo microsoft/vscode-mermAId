@@ -6,7 +6,7 @@ Collaborate with [GitHub Copilot](https://code.visualstudio.com/docs/copilot/ove
 
 ## Features
 
-Ask the `@mermAId` chat participant to generate a diagram based on the current open editor.  Include slash commands for commonly used diagram types.
+Ask the `@mermAId` chat participant to generate a diagram based on the current open editor. Include slash commands for commonly used diagram types.  Follow the links in the diagram to relevant source code.
 
 ![uml-diagram-from-code](./assets/gifs/01.gif)
 
