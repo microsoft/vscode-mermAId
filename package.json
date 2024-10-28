@@ -3,7 +3,10 @@
   "publisher": "ms-vscode",
   "displayName": "vscode-mermAId",
   "description": "Exploration into Copilot Chat-powered Diagram Generation",
-  "repository": "https://github.com/microsoft/vscode-mermAId",
+  "repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode-mermAId.git"
+	},
   "version": "0.0.1",
   "icon": "assets/logo.png",
   "engines": {
