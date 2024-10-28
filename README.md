@@ -6,11 +6,23 @@ Collaborate with [GitHub Copilot](https://code.visualstudio.com/docs/copilot/ove
 
 ## Features
 
-1. The chat participant `mermAId` which will create mermaid based diagrams and allow you to iterate on them.
-2. Chat tools, used by the participant, that will gather context about your code to create more detailed and accurate diagrams.
-3. A new Outline view that will generate a diagram based on the outline of each file.
-4. Diagrams can be viewed as the rendered SVG or the source mermaid code.
-5. Links can be automatically injected into the diagram to navigate to the related code.
+Ask the `@mermAId` chat participant to generate a diagram based on the current open editor. Include slash commands for commonly used diagram types.  Follow the links in the diagram to relevant source code.
+
+![uml-diagram-from-code](./assets/gifs/01.gif)
+
+Don't have any code? Chat with `@mermAId` to prototype an idea or deepen your knowledge of programming concepts
+
+![sequence-diagram-no-code](./assets/gifs/02.gif)
+
+Iterate on complex diagrams using natural language
+
+![iterate-with-natural-language](./assets/gifs/03.gif)
+
+Open the "Visual Outline" view to dynamically generate diagrams when swapping between editors.  Break out into chat for finer control.
+
+![outline-view-demo](./assets/gifs/04.gif)
+
+
 
 ## Extension Settings
 
