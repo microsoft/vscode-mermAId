@@ -43,7 +43,7 @@ class GetSymbolDefinitionTool
         options: vscode.LanguageModelToolInvocationOptions<IGetSymbolDefinition>,
         token: vscode.CancellationToken
     ) {
-        const params = options.parameters;
+        const params = options.input;
         const currentFilePath = params.fileString;
         const resultMap: Map<string, string> = new Map();
         const errors: string[] = [];
@@ -108,7 +108,7 @@ class GetSymbolDefinitionTool
         token: vscode.CancellationToken
     ) {
         return {
-            invocationMessage: `Getting definition for '${options.parameters.symbols?.join(', ')}'`,
+            invocationMessage: `Getting definition for '${options.input.symbols?.join(', ')}'`,
         };
     }
 }
@@ -119,7 +119,7 @@ class GatherSymbolInfoTool
         options: vscode.LanguageModelToolInvocationOptions<IGatherSymbolInfo>,
         token: vscode.CancellationToken
     ) {
-        const params = options.parameters;
+        const params = options.input;
         const resultMap: Map<string, string> = new Map();
         const errors: string[] = [];
         let finalMessageString = 'Found symbol information:\n';
@@ -184,7 +184,7 @@ class GatherSymbolInfoTool
         token: vscode.CancellationToken
     ) {
         return {
-            invocationMessage: `Getting symbol information for '${options.parameters.symbols?.join(', ')}'`,
+            invocationMessage: `Getting symbol information for '${options.input.symbols?.join(', ')}'`,
         };
     }
 }

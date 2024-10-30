@@ -37,7 +37,7 @@ async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vsco
         return {
             name: tool.name,
             description: tool.description,
-            parametersSchema: tool.parametersSchema ?? {}
+            inputSchema: tool.inputSchema ?? {}
         };
     });
     logMessage(`Available tools: ${options.tools.map(tool => tool.name).join(', ')}`);

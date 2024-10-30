@@ -219,7 +219,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                 return {
                     name: tool.name,
                     description: tool.description,
-                    parametersSchema: tool.parametersSchema ?? {}
+                    inputSchema: tool.inputSchema ?? {}
                 };
             }).filter(tool => tool.name === 'copilot_codebase' || tool.name === 'mermAId_get_symbol_definition'),
         };
@@ -296,13 +296,12 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                     if (!toolUsed) {
                         throw new Error(`Tool ${part.name} invalid`);
                     }
-                    const parameters = part.parameters;
 
                     toolCalls.push({
                         call: part,
                         result: vscode.lm.invokeTool(toolUsed.name,
                             {
-                                parameters,
+                                input: part.input,
                                 toolInvocationToken: undefined,
                             }, cancellationToken),
                         tool: toolUsed
@@ -312,7 +311,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                 // if any tools were used, add them to the context and re-run the query
                 if (toolCalls.length) {
                     const assistantMsg = vscode.LanguageModelChatMessage.Assistant('');
-                    assistantMsg.content = toolCalls.map(toolCall => new vscode.LanguageModelToolCallPart(toolCall.call.callId, toolCall.tool.name, toolCall.call.parameters));
+                    assistantMsg.content = toolCalls.map(toolCall => new vscode.LanguageModelToolCallPart(toolCall.call.callId, toolCall.tool.name, toolCall.call.input));
                     messages.push(assistantMsg);
                     for (const toolCall of toolCalls) {
                         // NOTE that the result of calling a function is a special content type of a USER-message

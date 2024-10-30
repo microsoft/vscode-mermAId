@@ -118,7 +118,7 @@ class ToolCalls extends PromptElement<ToolCallsProps, void> {
 	}
 
 	private renderOneToolCallRound(round: ToolCallRound) {
-		const assistantToolCalls: ToolCall[] = round.toolCalls.map(tc => ({ type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.parameters) }, id: tc.callId }));
+		const assistantToolCalls: ToolCall[] = round.toolCalls.map(tc => ({ type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) }, id: tc.callId }));
 		// TODO- just need to adopt prompt-tsx update in vscode-copilot
 		return (
 			<Chunk>
@@ -149,7 +149,7 @@ class ToolCallElement extends PromptElement<ToolCallElementProps, void> {
 		};
 
 		const toolResult = this.props.toolCallResult ??
-			await vscode.lm.invokeTool(this.props.toolCall.name, { parameters: this.props.toolCall.parameters, toolInvocationToken: this.props.toolInvocationToken, tokenizationOptions }, dummyCancellationToken);
+			await vscode.lm.invokeTool(this.props.toolCall.name, { input: this.props.toolCall.input, toolInvocationToken: this.props.toolInvocationToken, tokenizationOptions }, dummyCancellationToken);
 
 
 		// Reduced priority for copilot_codebase tool call since the responses are so long and use up so many tokens.
