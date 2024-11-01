@@ -2,7 +2,7 @@
 
 Collaborate with [GitHub Copilot](https://code.visualstudio.com/docs/copilot/overview) to create [Mermaid](https://mermaid.js.org/intro/) diagrams through the chat participant, `@mermAId`.  
 
-This extension was built in part to demonstrate the power of new Github Copilot extension APIs.  Check out the [VS Code Chat Participant API](https://code.visualstudio.com/api/extension-guides/chat) for more info!
+This extension was built in part to demonstrate the power of new GitHub Copilot extension APIs.  Check out the [VS Code Chat Participant API](https://code.visualstudio.com/api/extension-guides/chat) for more info!
 
 [Sign up for a GitHub Copilot free trial](https://github.com/settings/copilot)
 
