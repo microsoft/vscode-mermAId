@@ -19,7 +19,6 @@ export function makePrompt(command: string | undefined, validationError: string)
 	const requestCommand = getCommandPromptPart(command);
 	
 	return `
-<instructions>
 - You are a helpful chat assistant that creates diagrams using the
 mermaid syntax.
 - If you aren't sure which tool is relevant and feel like you are missing
@@ -46,14 +45,13 @@ ${clickableSyntaxExample}
 - Do not add anything to the response past the closing \`\`\` delimiter or
 we won't be able to parse the response correctly.
 - The \`\`\` delimiter should only occur in the two places mentioned above.
-</instructions>
+
 <context>
 ${docRef}
 ${diagramRef}
 </context>
-<instructions>
+
 ${requestCommand}
-</instructions>
 ${validationError}
 `;
 }
@@ -69,8 +67,7 @@ function getCommandPromptPart(commandName: string | undefined): string {
 			}
 			logMessage('Iterating on existing diagram.');
 			logMessage(diagram.content);
-			return `
-Please make changes to the currently open diagram.
+			return `Please make changes to the currently open diagram.
 
 There will be following instructions on how to update the diagram.
 Do not make any other edits except my directed suggestion.
@@ -80,8 +77,7 @@ ${beforeIterateCommandExampleDiagram}
 Then you should emit the following diagram:
 ${afterIterateCommandExampleDiagram}`;
 		case 'uml':
-			return `
-Please create UML diagram. Include all relevant classes in the file attached as context. You must use the tool mermAId_get_symbol_definition to get definitions of symbols
+			return `Please create UML diagram. Include all relevant classes in the file attached as context. You must use the tool mermAId_get_symbol_definition to get definitions of symbols
 not defined in the current context. You should call it multiple times since you will likely need to get the definitions of multiple symbols.
 Therefore for all classes you touch, explore their related classes using mermAId_get_symbol_definition to get their definitions and add them to the diagram.
 All class relationships should be defined and correctly indicated using mermaid syntax. Also add the correct Cardinality / Multiplicity to associations like 1..n one to n where n is great than 1.
@@ -95,8 +91,7 @@ Dependency: ..> : Represents a "uses" relationship where one class depends on an
 Realization: ..|> : Represents an implementation relationship between an interface and a class.
 Link; solid or dashed: -- : used when no other relationship fits.`;
 		case 'sequence':
-			return `
-Please create a mermaid sequence diagram. The diagram should include all relevant steps to describe the behaviors, actions, and steps in the user's code.
+			return `Please create a mermaid sequence diagram. The diagram should include all relevant steps to describe the behaviors, actions, and steps in the user's code.
 Sequence diagrams model the interactions between different parts of a system in a time-sequenced manner. There are participants which represent entities in
 the system. These actors can have aliases, be group and be deactivated.
 Mermaid sequence diagrams also support loops, alternative routes, parallel actions, breaks in flow, notes/comments and more.
