@@ -1,12 +1,10 @@
+import { sendChatParticipantRequest } from '@vscode/chat-extension-utils';
 import * as vscode from 'vscode';
-import { logMessage } from '../extension';
+import { COMMAND_OPEN_DIAGRAM_SVG } from '../commands';
 import { Diagram } from '../diagram';
 import { DiagramEditorPanel } from '../diagramEditorPanel';
-import { renderPrompt, toVsCodeChatMessages } from '@vscode/prompt-tsx';
-import { MermaidPrompt, ToolResultMetadata } from './mermaidPrompt';
-import { ToolCallRound } from './toolMetadata';
-import { COMMAND_OPEN_DIAGRAM_SVG, COMMAND_OPEN_MARKDOWN_FILE } from '../commands';
-import { renderMessages } from './chatHelpers';
+import { logMessage } from '../extension';
+import { makePrompt } from './mermaidPrompt';
 
 let developmentMode = false;
 
@@ -22,91 +20,48 @@ export function registerChatParticipant(context: vscode.ExtensionContext) {
 }
 
 async function chatRequestHandler(request: vscode.ChatRequest, chatContext: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
-    const models = await vscode.lm.selectChatModels({
-        vendor: 'copilot',
-        family: 'gpt-4o'
-    });
-
-    const model = models[0];
-
-    const options: vscode.LanguageModelChatRequestOptions = {
-        justification: 'To collaborate on diagrams',
-    };
-
-    options.tools = vscode.lm.tools.map((tool): vscode.LanguageModelChatTool => {
-        return {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: tool.inputSchema ?? {}
-        };
-    });
-    logMessage(`Available tools: ${options.tools.map(tool => tool.name).join(', ')}`);
-
-    let { messages, references } = await renderMessages(model, {
-        context: chatContext,
-        request,
-        toolCallRounds: [],
-        toolCallResults: {},
-        command: request.command,
-        validationError: undefined
-    }, stream, developmentMode);
-
-    references.forEach(ref => {
-        if (ref.anchor instanceof vscode.Uri || ref.anchor instanceof vscode.Location) {
-            stream.reference(ref.anchor);
+    if (request.command === 'help') {
+        handleHelpCommand(stream);
+        return;
+    } else if (request.command === 'iterate') {
+        const diagram = DiagramEditorPanel.currentPanel?.diagram;
+        if (!diagram) {
+            stream.markdown('No diagram found in editor view. Please create a diagram first to iterate on it.');
+            return;
         }
-    });
+    }
 
     let retries = 0;
-    const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
-    const toolCallRounds: ToolCallRound[] = [];
-
-    const runWithFunctions = async (): Promise<void> => {
-        if (token.isCancellationRequested) {
-            return;
-        }
-
-        if (request.command === 'help') {
-            stream.markdown(`
-## Welcome to the Mermaid Diagram Generator!
-
-Mermaid is a diagramming and charting tool that extends markdown. Visit their [website](https://mermaid.js.org/) to learn more about the tool.
-
-This chat agent generates useful diagrams using Mermaid to help you better understand your code and communicate your ideas to others. You can chat just by typing or use a command for a more specific intent.
-
-### Available Commands:
-- **\\uml**: Create Unified Modeling Language graph, or Class Diagram.
-- **\\sequence**: Create a sequence Diagram.
-- **\\iterate**: To be called when you already have a diagram up to refine, add, and change the existing diagram.
-
-Good luck and happy diagramming!
-            `);
-            return;
-        }
-
-        if (request.command === 'iterate') {
-            const diagram = DiagramEditorPanel.currentPanel?.diagram;
-            if (!diagram) {
-                stream.markdown('No diagram found in editor view. Please create a diagram first to iterate on it.');
-                return;
-            }
-        }
-
+    let validationError = '';
+    const runRequest = async () => {
+        const result = sendChatParticipantRequest(
+            request,
+            chatContext,
+            {
+                prompt: makePrompt(request.command, validationError),
+                tools: vscode.lm.tools.filter(tool => tool.tags.includes('mermaid')),
+                responseStreamOptions: {
+                    stream,
+                    references: true,
+                    responseText: false
+                },
+                requestJustification: 'To collaborate on diagrams',
+            },
+            token);
+    
         let isMermaidDiagramStreamingIn = false;
         let mermaidDiagram = '';
-
-        const response = await model.sendRequest(toVsCodeChatMessages(messages), options, token);
-        const toolCalls: vscode.LanguageModelToolCallPart[] = [];
-
+    
         let responseStr = '';
-        for await (const part of response.stream) {
+        for await (const part of result.stream) {
             if (part instanceof vscode.LanguageModelTextPart) {
                 if (!isMermaidDiagramStreamingIn && part.value.includes('```')) {
                     // When we see a code block, assume it's a mermaid diagram
                     stream.progress('Capturing mermaid diagram from the model...');
                     isMermaidDiagramStreamingIn = true;
                 }
-
+    
+                // TODO get multiple diagrams? need to handle the end?
                 if (isMermaidDiagramStreamingIn) {
                     // Gather the mermaid diagram so we can validate it
                     mermaidDiagram += part.value;
@@ -115,42 +70,16 @@ Good luck and happy diagramming!
                     stream.markdown(part.value);
                     responseStr += part.value;
                 }
-            } else if (part instanceof vscode.LanguageModelToolCallPart) {
-                toolCalls.push(part);
             }
-
         }
-
-        if (toolCalls.length) {
-            toolCallRounds.push({
-                response: responseStr,
-                toolCalls
-            });
-            const result = await renderMessages(model, {
-                context: chatContext,
-                request,
-                toolCallRounds,
-                toolCallResults: accumulatedToolResults,
-                command: request.command,
-                validationError: undefined
-            }, stream, developmentMode);
-            messages = result.messages;
-            const toolResultMetadata = result.metadata.getAll(ToolResultMetadata);
-            if (toolResultMetadata?.length) {
-                toolResultMetadata.forEach(meta => accumulatedToolResults[meta.toolCallId] = meta.result);
-            }
-
-            return runWithFunctions();
-        }
-
+    
         logMessage(mermaidDiagram);
-        isMermaidDiagramStreamingIn = false;
-
+    
         // Validate
         stream.progress('Validating mermaid diagram');
         const diagram = new Diagram(mermaidDiagram);
         const diagramResult = await DiagramEditorPanel.createOrShow(diagram);
-
+    
         if (diagramResult.success) {
             const openMermaidDiagramCommand: vscode.Command = {
                 command: COMMAND_OPEN_DIAGRAM_SVG,
@@ -160,11 +89,10 @@ Good luck and happy diagramming!
             stream.button(openMermaidDiagramCommand);
             return;
         }
-
+    
         // -- Handle parse error
         logMessage(`Not successful (on retry=${++retries})`);
         if (retries < 3) {
-            let validationError = '';
             if (retries === 1 && mermaidDiagram.indexOf('classDiagram') !== -1) {
                 stream.progress('Attempting to fix validation errors');
                 validationError = getValidationErrorMessage(diagramResult.error, mermaidDiagram, true);
@@ -172,17 +100,7 @@ Good luck and happy diagramming!
                 stream.progress('Attempting to fix validation errors');
                 validationError = getValidationErrorMessage(diagramResult.error, mermaidDiagram, false);
             }
-            // tool call results should all be cached, but we need to re-render the prompt with the error message
-            const result = await renderMessages(model, {
-                context: chatContext,
-                request,
-                toolCallRounds,
-                toolCallResults: accumulatedToolResults,
-                command: request.command,
-                validationError
-            }, stream, developmentMode);
-            messages = result.messages;
-            return runWithFunctions();
+            return runRequest();
         } else {
             if (diagramResult.error) {
                 logMessage(diagramResult.error);
@@ -190,10 +108,25 @@ Good luck and happy diagramming!
             stream.markdown('Failed to display your requested mermaid diagram. Check output log for details.\n\n');
             return;
         }
+    };
 
-    }; // End runWithFunctions()
+    await runRequest();
+}
 
-    await runWithFunctions();
+function handleHelpCommand(stream: vscode.ChatResponseStream) {
+    stream.markdown(`
+## Welcome to the Mermaid Diagram Generator!
+
+Mermaid is a diagramming and charting tool that extends markdown. Visit their [website](https://mermaid.js.org/) to learn more about the tool.
+
+This chat agent generates useful diagrams using Mermaid to help you better understand your code and communicate your ideas to others. You can chat just by typing or use a command for a more specific intent.
+
+### Available Commands:
+- **/uml**: Create Unified Modeling Language graph, or Class Diagram.
+- **/sequence**: Create a sequence Diagram.
+- **/iterate**: To be called when you already have a diagram up to refine, add, and change the existing diagram.
+
+Good luck and happy diagramming!`);
 }
 
 function getValidationErrorMessage(error: string, diagram: string, uml: boolean) {

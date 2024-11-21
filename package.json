@@ -4,9 +4,9 @@
   "displayName": "vscode-mermAId",
   "description": "Exploration into Copilot Chat-powered Diagram Generation",
   "repository": {
-		"type": "git",
-		"url": "https://github.com/microsoft/vscode-mermAId.git"
-	},
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode-mermAId.git"
+  },
   "version": "0.0.1",
   "icon": "assets/logo.png",
   "engines": {
@@ -91,7 +91,8 @@
         "name": "mermAId_get_symbol_definition",
         "tags": [
           "code",
-          "symbols"
+          "symbols",
+          "mermaid"
         ],
         "displayName": "Symbol Definitions from File",
         "modelDescription": "Given a file path string and a list of symbols, this model returns the definitions of the specified symbols. For example, if the file 'x.py' is provided and the symbol 'abc' is requested, the model will find 'abc' in 'x.py' and return its definition from the file where it is actually defined, such as 'y.py'.",
@@ -124,7 +125,8 @@
         "name": "mermAId_gather_symbols",
         "tags": [
           "code",
-          "symbols"
+          "symbols",
+          "mermaid"
         ],
         "displayName": "Gather Workspace Symbols",
         "modelDescription": "This tool will accept a list of symbols and attempt to gather information about those symbols from the entire workspace. It can provide the location, parent symbol, and the the symbol's content.",
@@ -290,6 +292,7 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@vscode/chat-extension-utils": "^0.0.0-alpha.1",
     "@vscode/codicons": "^0.0.36",
     "groq-sdk": "^0.7.0",
     "mermaid": "^11.3.0"
