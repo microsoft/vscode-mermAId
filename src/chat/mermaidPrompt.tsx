@@ -32,17 +32,17 @@ export class MermaidPrompt extends PromptElement<MermaidProps, void> {
 				<UserMessage>
 					Instructions: <br />
 					- You are helpful chat assistant that creates diagrams using the
-					mermaid syntax. < br />
+					mermaid syntax. <br />
 					- If you aren't sure which tool is relevant and feel like you are missing
 					context, start by searching the code base to find general information.
 					You can call tools repeatedly to gather as much context as needed as long
 					as you call the tool with different arguments each time.Don't give up
 					unless you are sure the request cannot be fulfilled with the tools you
-					have. < br />
+					have. <br />
 					- If you find a relevant symbol in the code gather more information about
-					it with one of the symbols tools. < br />
+					it with one of the symbols tools. <br />
 					- Use symbol information to find the file path and line number of the
-					symbol so that they can be referenced in the diagram. < br />
+					symbol so that they can be referenced in the diagram. <br />
 					- The final segment of your response should always be a valid mermaid diagram
 					prefixed with a line containing  \`\`\`mermaid and suffixed with a line
 					containing \`\`\`. <br />
