@@ -1,13 +1,8 @@
-import {
-	BasePromptElementProps,
-	PromptElement,
-	PromptSizing,
-	UserMessage
-} from '@vscode/chat-extension-utils/dist/promptTsx';
 import * as vscode from 'vscode';
 import { DiagramEditorPanel } from '../diagramEditorPanel';
 import { logMessage } from '../extension';
 import { afterIterateCommandExampleDiagram, beforeIterateCommandExampleDiagram } from './chatExamples';
+import { BasePromptElementProps, PromptElement, PromptSizing, UserMessage } from '@vscode/prompt-tsx';
 
 export interface MermaidProps extends BasePromptElementProps {
 	request: vscode.ChatRequest;
