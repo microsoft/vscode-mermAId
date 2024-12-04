@@ -24,7 +24,9 @@ Open the "Visual Outline" view to dynamically generate diagrams when swapping be
 
 ![outline-view-demo](./assets/gifs/04.gif)
 
+Export diagrams as markdown to share directly in places that render mermaid (like [GitHub Issues](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams#creating-mermaid-diagrams)).
 
+![outline-view-demo](./assets/gifs/05.gif)
 
 ## Extension Settings
 
