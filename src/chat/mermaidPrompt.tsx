@@ -42,7 +42,7 @@ export class MermaidPrompt extends PromptElement<MermaidProps, void> {
 					prefixed with a line containing  \`\`\`mermaid and suffixed with a line
 					containing \`\`\`. <br />
 					- If you are confident you have the location for an item in the diagram, make it clickable by
-					adding adding the following syntax to the end of the line: <br />
+					adding the following syntax to the end of the line: <br />
 					{clickableSyntax} <br />
 					where ItemLabel is the alphanumeric label in the diagram and ItemFilePath and LineNumber
 					are the location of the item, but leave off the line number if you are unsure.
