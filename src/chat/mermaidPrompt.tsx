@@ -41,14 +41,17 @@ export class MermaidPrompt extends PromptElement<MermaidProps, void> {
 					- The final segment of your response should always be a valid mermaid diagram
 					prefixed with a line containing  \`\`\`mermaid and suffixed with a line
 					containing \`\`\`. <br />
-					- If you have the location for an item in the diagram, make it clickable by
+					- If you are confident you have the location for an item in the diagram, make it clickable by
 					adding adding the following syntax to the end of the line: <br />
 					{clickableSyntax} <br />
-					where ItemLabel is the label in the diagram and ItemFilePath and LineNumber
+					where ItemLabel is the alphanumeric label in the diagram and ItemFilePath and LineNumber
 					are the location of the item, but leave off the line number if you are unsure.
 					For example: <br />
 					{clickableSyntaxExample} <br />
 					- Make sure to only use the \`/\` character as a path separator in the links.
+					- Ensure the ItemLabel only contains alphanumeric characters.
+					- In a 'classDiagram', methods on a class is NOT a valid ItemLabel
+					- Use absolute paths in the linkCallback
 					<br />
 					- Do not add anything to the response past the closing \`\`\` delimiter or
 					we won't be able to parse the response correctly. <br />
