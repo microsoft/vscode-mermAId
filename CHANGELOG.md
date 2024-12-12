@@ -1,9 +1,3 @@
 # Change Log
 
-All notable changes to the "copilot-mermaid-diagram" extension will be documented in this file.
-
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
-## [Unreleased]
-
-- Initial release
+See the relevant [GitHub Release](https://github.com/microsoft/vscode-mermAId/releases).
