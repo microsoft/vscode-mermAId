@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/microsoft/vscode-mermAId.git"
   },
-  "version": "0.0.2",
+  "version": "0.0.3",
   "icon": "assets/logo.png",
   "engines": {
     "vscode": "^1.96.0"
