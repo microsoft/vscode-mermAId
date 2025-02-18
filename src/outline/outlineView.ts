@@ -1,21 +1,14 @@
 import * as vscode from 'vscode';
-import { logMessage } from './extension';
-import { IToolCall } from './chat/chatHelpers';
-import { Diagram } from './diagram';
-import { DiagramEditorPanel, ParseDetails, WebviewResources } from './diagramEditorPanel';
-import { DiagramDocument } from './diagramDocument';
-import { groqEnabled, callWithGroq as sendGroqRequest } from './groqHandler';
-import { checkForMermaidExtensions, formatMermaidErrorToNaturalLanguage } from './mermaidHelpers';
-
-const llmInstructions = `
-You are helpful chat assistant that creates diagrams for the user using the mermaid syntax.
-The output diagram should represent an outline of the document.
-Use tools to help you formulate the structure of the code.
-You must provide a valid mermaid diagram prefixed with a line containing  \`\`\`mermaid
-and suffixed with a line containing \`\`\`.
-Only ever include the \`\`\` delimiter in the two places mentioned above.
-Do not include any other text before or after the diagram, only include the diagram.
-`;
+import { logMessage } from '../extension';
+import { IToolCall } from '../chat/chatHelpers';
+import { Diagram } from '../diagram';
+import { DiagramEditorPanel, ParseDetails, WebviewResources } from '../diagramEditorPanel';
+import { DiagramDocument } from '../diagramDocument';
+import { groqEnabled, callWithGroq as sendGroqRequest } from '../groqHandler';
+import { checkForMermaidExtensions, formatMermaidErrorToNaturalLanguage } from '../mermaidHelpers';
+import { PromptElementAndProps } from '@vscode/chat-extension-utils/dist/toolsPrompt';
+import { OutlinePrompt } from './outlinePrompt';
+import { sendChatParticipantRequest } from '@vscode/chat-extension-utils';
 
 const followOutlineContextKey = 'copilot-mermAId-diagram.followActiveDocument';
 const isShowingDiagramContextKey = 'copilot-mermAId-diagram.isShowingDiagram';
@@ -213,204 +206,86 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
         if (!model) {
             return { success: false, error: 'No model' };
         }
-        const options: vscode.LanguageModelChatRequestOptions = {
-            justification: 'To display a dynamic diagram of the file outline',
-            tools: vscode.lm.tools.map((tool): vscode.LanguageModelChatTool => {
-                return {
-                    name: tool.name,
-                    description: tool.description,
-                    inputSchema: tool.inputSchema ?? {}
-                };
-            }).filter(tool => tool.name === 'copilot_codebase' || tool.name === 'mermAId_get_symbol_definition'),
-        };
-        logMessage(`Available tools: ${options.tools?.map(tool => tool.name)?.join(', ')}`);
-        if (cancellationToken.isCancellationRequested) {
-            return { success: false, error: 'Cancelled' };
-        }
 
-        const messages = [
-            vscode.LanguageModelChatMessage.Assistant(llmInstructions),
-            vscode.LanguageModelChatMessage.User(`The file the user currently has open is: ${doc.uri.fsPath} with contents: ${doc.getText()}`),
-        ];
-
-        // A flag to enable groq if API key is present      
-        let localGroqEnabled = groqEnabled;
-        if (groqEnabled) {
-            // If api key is present, also check the setting
-            const setting = vscode.workspace.getConfiguration('mermaid').get('groqEnabled');
-            if (setting === false) {
-                // if setting turns off groq, do so in extension
-                localGroqEnabled = false;
-            }
-            // otherwise keep it on
-        }
-
-        // Recursive
+        let localGroqEnabled = groqEnabled && vscode.workspace.getConfiguration('mermaid').get('groqEnabled') !== false;
         let retry = 0;
+        let validationError = '';
+
         const runWithTools = async () => {
-            const toolCalls: IToolCall[] = [];
+            const prompt: PromptElementAndProps<OutlinePrompt> = {
+                promptElement: OutlinePrompt,
+                props: { documentUri, validationError }
+            };
+
+            const request: vscode.ChatRequest = {
+                model,
+                prompt: "Create a diagram",
+                references: [],
+                toolReferences: [],
+                command: undefined,
+                toolInvocationToken: undefined as never
+            };
+
+            const context: vscode.ChatContext = {
+                history: [],
+            } 
+
+            const result = sendChatParticipantRequest(
+                request,
+                context,
+                {
+                    prompt,
+                    tools: vscode.lm.tools.filter(tool => 
+                        tool.name === 'copilot_codebase' || tool.name === 'mermAId_get_symbol_definition'
+                    ),
+                    requestJustification: 'To display a dynamic diagram of the file outline',
+                    extensionMode: this.context.extensionMode,
+                },
+                cancellationToken
+            );
+
             let mermaidDiagram = '';
+            for await (const part of result.stream) {
+                if (part instanceof vscode.LanguageModelTextPart) {
+                    mermaidDiagram += part.value;
+                }
+            }
 
             if (cancellationToken.isCancellationRequested) {
                 return { success: false, error: 'Cancelled' };
             }
 
-            let response;
-            if (localGroqEnabled) {
-                response = await sendGroqRequest(messages);
-            } else {
-                response = await model.sendRequest(messages, options, cancellationToken);
-            }
-            // Loop for reading response from the LLM
-            for await (let part of response.stream) {
-                if (part !== null && 'choices' in (part as any)) {
-                    // This is a hack to get around Groq return style and convert it the desired shape
-                    try {
-                        const justDelta = (part as any).choices[0]?.delta;
-                        const toolCall = (part as any).choices[0]?.delta?.tool_calls;
-                        const partContent: string = (part as any).choices[0]?.delta?.content;
-                        if (partContent) {
-                            // do not translate if undefined
-                            part = new vscode.LanguageModelTextPart(partContent);
-                        }
-                        if (toolCall) {
-                            // translate tool call to a tool call object
-                            const args = toolCall[0].function.arguments;
-                            const argsParsed = JSON.parse(toolCall[0].function.arguments);
-                            // groq only has one tool, so we can hardcode the name
-                            const toolName = "mermAId_get_symbol_definition";
-                            const id = toolCall[0].id;
-                            part = new vscode.LanguageModelToolCallPart(id, toolName, argsParsed);
-                        }
-
-                    } catch (e) {
-                        logMessage(`ERR: ${e}`);
-                        console.log(e);
-                    }
-                }
-                if (part instanceof vscode.LanguageModelTextPart) {
-                    mermaidDiagram += part.value;
-                } else if (part instanceof vscode.LanguageModelToolCallPart) {
-                    const toolUsed = vscode.lm.tools.find(t => t.name === part.name);
-                    logMessage(`🛠️ Used tool '${toolUsed?.name}' to generate diagram`);
-                    if (!toolUsed) {
-                        throw new Error(`Tool ${part.name} invalid`);
-                    }
-
-                    toolCalls.push({
-                        call: part,
-                        result: vscode.lm.invokeTool(toolUsed.name,
-                            {
-                                input: part.input,
-                                toolInvocationToken: undefined,
-                            }, cancellationToken),
-                        tool: toolUsed
-                    });
-                }
-
-                // if any tools were used, add them to the context and re-run the query
-                if (toolCalls.length) {
-                    const assistantMsg = vscode.LanguageModelChatMessage.Assistant('');
-                    assistantMsg.content = toolCalls.map(toolCall => new vscode.LanguageModelToolCallPart(toolCall.call.callId, toolCall.tool.name, toolCall.call.input));
-                    messages.push(assistantMsg);
-                    for (const toolCall of toolCalls) {
-                        // NOTE that the result of calling a function is a special content type of a USER-message
-                        const message = vscode.LanguageModelChatMessage.User('');
-                        const tooolResult = await toolCall.result;
-                        message.content = [new vscode.LanguageModelToolResultPart(toolCall.call.callId, [tooolResult])];
-                        messages.push(message);
-                    }
-
-                    // IMPORTANT The prompt must end with a USER message (with no tool call)
-                    messages.push(vscode.LanguageModelChatMessage.User(`Above is the result of calling the functions ${toolCalls.map(call => call.tool.name)?.join(', ')}. Use this as you iterate on the mermaid diagram.`));
-
-                    // RE-enter
-                    return runWithTools();
-                }
-            } // done with stream loop
-
             logMessage(`Received candidate mermaid outline, moving to validation`);
             logMessage(mermaidDiagram);
 
             // Validate the diagram
-            let result: { success: true } | { success: false, error: string; friendlyError?: string } | undefined = undefined;
             let candidateNextDiagram = undefined;
             if (mermaidDiagram.length === 0) {
-                // Diagram isn't valid if it is empty, no need to try and parse it, give better error back to model
-                result = { success: false, error: "Empty diagram" };
-                messages.push(vscode.LanguageModelChatMessage.User(`The diagram is empty, please retry`));
-                // this may occur if groq reached max tokens, so disable groq as a fallback
-                localGroqEnabled = false;
-                messages.push(vscode.LanguageModelChatMessage.User(`diagram returned was empty (turning off groq if on)`));
-            } else {
-                candidateNextDiagram = new Diagram(mermaidDiagram);
-                result = await this.validate(candidateNextDiagram, cancellationToken);
+                validationError = 'The diagram is empty, please retry';
+                localGroqEnabled = false; // Disable GROQ as fallback
+                return { success: false, error: 'Empty diagram' };
             }
 
-
-            if (result.success) {
+            candidateNextDiagram = new Diagram(mermaidDiagram);
+            const parseResult = await this.validate(candidateNextDiagram, cancellationToken);
+            
+            if (parseResult.success) {
                 logMessage("Outline generation and validation success");
-                return result;
+                return parseResult;
             }
-
-            //  -- Handle parse error
 
             logMessage(`Outline generation not success (attempt=${++retry})`);
             if (retry < 4) {
-
-                // --- Try to manually fix
-
-                // TODO: 
-                //     Below is commented because calling this.validate is causing a race (due to how it sets this.parseDetails)
-                //
-                // check for inner braces error, remove if exists
-                // const regex = /\{[^{}]*\{[^{}]*\}[^{}]*\}/g;
-                // const regexMatches = mermaidDiagram.match(regex);
-                // if (regexMatches?.length && regexMatches.length > 0) {
-                //     logMessage(`Removing inner braces from diagram....`);
-                //     const diagram = removeInnerBracesAndContent(mermaidDiagram);
-                //     const candidateNextDiagram2 = new Diagram(diagram);
-                //     const { success } = await this.validate(candidateNextDiagram2, cancellationToken);
-                //     if (success) {
-                //         logMessage("(Inner brace check) Outline generation and validation success");
-                //         return result;
-                //     }
-                // }
-
-                // -- Prompt LLM to fix
-
-                messages.push(
-                    vscode.LanguageModelChatMessage.User(`Please fix mermaid parse errors to make the diagram render correctly.`)
-                );
-
-                if (result.friendlyError) {
-                    messages.push(
-                        vscode.LanguageModelChatMessage.User(result.friendlyError)
-                    );
-                }
-
-                messages.push(
-                    vscode.LanguageModelChatMessage.User(
-                        `The raw error reported is: ${result.error}`
-                    )
-                );
-
-                if (candidateNextDiagram) {
-                    messages.push(
-                        vscode.LanguageModelChatMessage.User(`The produced diagram with the parse error is:\n${candidateNextDiagram.content}`)
-                    );
-                }
-
+                validationError = parseResult.friendlyError ?? parseResult.error;
                 if (retry === 2) {
-                    // Disable groq for the third retry since OpenAI can be more dependable
                     logMessage('Disabling groq for the third retry');
                     localGroqEnabled = false;
                 }
                 return runWithTools();
-            } else {
-                return { success: false, error: "Exhausted retries" };
             }
-        }; // done with runWithTools
+
+            return { success: false, error: "Exhausted retries" };
+        };
 
         return await runWithTools();
     }
@@ -533,7 +408,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
                     <span style="margin-left: 8px;">to start a chat session</span>
                 </div>
             </div>
-        `); // TODO: Style, Add buttons?
+        `);
     }
 
     private setContinueInChatPage() {
@@ -574,12 +449,3 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
     constructor(private readonly context: vscode.ExtensionContext) { }
 
 }
-
-function removeInnerBracesAndContent(str: string) {
-    // Match the pattern of double nested curly braces and their contents
-    const regex = /\{[^{}]*\{[^{}]*\}[^{}]*\}/g;
-
-    // Replace the entire match with an empty string, effectively removing it
-    return str.replace(regex, '');
-}
-

@@ -279,6 +279,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.8",
     "@types/node": "20.x",
+    "@types/vscode": "^1.97.0",
     "@typescript-eslint/eslint-plugin": "^8.7.0",
     "@typescript-eslint/parser": "^8.7.0",
     "@vscode/prompt-tsx": "^0.3.0-alpha.12",
@@ -292,7 +293,7 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "@vscode/chat-extension-utils": "^0.0.0-alpha.4",
+    "@vscode/chat-extension-utils": "^0.0.0-alpha.5",
     "@vscode/codicons": "^0.0.36",
     "groq-sdk": "^0.7.0",
     "mermaid": "^11.3.0"

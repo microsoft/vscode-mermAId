@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { registerChatParticipant } from './chat/chatParticipant';
 import { registerChatTool } from "./chat/additionalTools";
-import { registerOutlineView } from './outlineView';
+import { registerOutlineView } from './outline/outlineView';
 import { registerCommands } from './commands';
 import { CodelensProvider } from './codeLensProvider';
 import { registerGroqTool } from './groqHandler';
