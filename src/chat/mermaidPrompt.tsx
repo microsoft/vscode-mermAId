@@ -84,7 +84,7 @@ class RequestCommand extends PromptElement<RequestCommandProps, void> {
 								End this chat conversation after explaining that you cannot iterate on a diagram that does not exist.
 							</UserMessage>
 						</>
-					)
+					);
 				}
 				logMessage('Iterating on existing diagram.');
 				logMessage(diagram.content);
@@ -102,7 +102,7 @@ class RequestCommand extends PromptElement<RequestCommandProps, void> {
 							{afterIterateCommandExampleDiagram}
 						</UserMessage>
 					</>
-				)
+				);
 			case 'uml':
 				return (
 					<>
