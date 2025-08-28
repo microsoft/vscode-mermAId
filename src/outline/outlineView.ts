@@ -228,14 +228,14 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
 
             const context: vscode.ChatContext = {
                 history: [],
-            } 
+            };
 
             const result = sendChatParticipantRequest(
                 request,
                 context,
                 {
                     prompt,
-                    tools: vscode.lm.tools.filter(tool => 
+                    tools: vscode.lm.tools.filter(tool =>
                         tool.name === 'copilot_codebase' || tool.name === 'mermAId_get_symbol_definition'
                     ),
                     requestJustification: 'To display a dynamic diagram of the file outline',
@@ -268,7 +268,7 @@ class OutlineViewProvider implements vscode.WebviewViewProvider {
 
             candidateNextDiagram = new Diagram(mermaidDiagram);
             const parseResult = await this.validate(candidateNextDiagram, cancellationToken);
-            
+
             if (parseResult.success) {
                 logMessage("Outline generation and validation success");
                 return parseResult;
