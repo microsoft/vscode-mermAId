@@ -176,6 +176,13 @@
           "group": "navigation"
         }
       ],
+      "editor/context": [
+        {
+          "command": "mermAId.openMarkdownFile",
+          "when": "copilot-mermAId-diagram.diagramIsActive",
+          "group": "mermaid@1"
+        }
+      ],
       "view/title": [
         {
           "command": "copilot-mermAId-diagram.view-markdown-source-from-outline",
@@ -211,7 +218,7 @@
       "commandPalette": [
         {
           "command": "mermAId.openMarkdownFile",
-          "when": "false"
+          "when": "copilot-mermAId-diagram.diagramIsActive || copilot-mermAId-diagram.isShowingDiagram"
         },
         {
           "command": "mermAId.openDiagramSvg",
@@ -260,7 +267,8 @@
       },
       {
         "command": "mermAId.openMarkdownFile",
-        "title": "View Markdown Source",
+        "title": "mermAId: Export Diagram as Markdown",
+        "shortTitle": "Export as Markdown",
         "icon": "$(markdown)"
       }
     ]
