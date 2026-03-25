@@ -1,3 +1,9 @@
+> [!NOTE]  
+> Starting in VS Code 1.109 [support for mermaid diagrams is built into VS Code](https://code.visualstudio.com/updates/v1_109#_mermaid-diagrams-in-chat-responses)!  Therefore this extension is no longer maintained.
+
+
+
+
 # Description
 
 Collaborate with [GitHub Copilot](https://code.visualstudio.com/docs/copilot/overview) to create [Mermaid](https://mermaid.js.org/intro/) diagrams through the chat participant, `@mermAId`.  
