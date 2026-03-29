@@ -34,6 +34,22 @@ Export diagrams as markdown to share directly in places that render mermaid (lik
 
 ![outline-view-demo](./assets/gifs/05.gif)
 
+## Supported Models
+
+This extension requires **GitHub Copilot** and uses the VS Code Language Model API to generate diagrams.
+
+### Default Model
+- **GitHub Copilot** (GPT-4 based models) - Fully supported and recommended
+
+### Experimental Support
+- **Groq** - Enabled via `mermaid.enableGroq` setting (see [Using groq](#using-groq) section)
+
+### Unsupported Models
+- **Claude** and other non-OpenAI models are not currently supported through the VS Code chat interface
+- If you see an error like `Model is not supported for this request`, ensure you're using a supported model in your Copilot settings
+
+> **Note**: The extension uses the VS Code Chat Participant API which currently requires GitHub Copilot. Third-party models accessed through other extensions may not be compatible.
+
 ## Extension Settings
 
 - `mermaid.searchForExtensions`: Search for Mermaid extensions when viewing Mermaid source.
